@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <h1>后台管理 - 待审核拍品</h1>
+    </div>
+</div>
+
+<div class="table-responsive mt-3">
+    <table class="table table-striped table-hover">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>名称</th>
+                <th>卖家</th>
+                <th>描述</th>
+                <th>起拍价</th>
+                <th>状态</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in items %}
+            <tr>
+                <td>{{ item.id }}</td>
+                <td>{{ item.name }}</td>
+                <td>{{ item.seller.username }}</td>
+                <td>{{ item.description[:50] }}...</td>
+                <td>¥{{ item.start_price }}</td>
+                <td><span class="badge bg-warning text-dark">{{ item.status }}</span></td>
+                <td>
+                    <a href="{{ url_for('approve_item', item_id=item.id) }}" class="btn btn-success btn-sm">批准</a>
+                    <a href="{{ url_for('reject_item', item_id=item.id) }}" class="btn btn-danger btn-sm">拒绝</a>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="7" class="text-center">暂无待审核拍品</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div class="mt-4">
+    <h3>系统统计</h3>
+    <p>此处可添加更多统计图表...</p>
+</div>
+{% endblock %}

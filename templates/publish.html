@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card mt-5">
+            <div class="card-header">发布新拍品</div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="mb-3">
+                        <label for="name" class="form-label">商品名称</label>
+                        <input type="text" class="form-control" id="name" name="name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="description" class="form-label">描述</label>
+                        <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label for="start_price" class="form-label">起拍价 (¥)</label>
+                        <input type="number" step="0.01" class="form-control" id="start_price" name="start_price" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="duration" class="form-label">拍卖时长 (分钟)</label>
+                        <input type="number" class="form-control" id="duration" name="duration" value="60" required>
+                        <div class="form-text">审核通过后开始计时。</div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">提交审核</button>
+                    <a href="{{ url_for('index') }}" class="btn btn-secondary">取消</a>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

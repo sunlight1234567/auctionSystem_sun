@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card mt-5">
+            <div class="card-header">注册账户</div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="mb-3">
+                        <label for="username" class="form-label">用户名</label>
+                        <input type="text" class="form-control" id="username" name="username" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="password" class="form-label">密码</label>
+                        <input type="password" class="form-control" id="password" name="password" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="role" class="form-label">角色</label>
+                        <select class="form-select" id="role" name="role" required>
+                            <option value="buyer">买家 (我要竞拍)</option>
+                            <option value="seller">卖家 (我要拍卖)</option>
+                            <option value="admin">管理员 (仅测试用)</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-success w-100">注册</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

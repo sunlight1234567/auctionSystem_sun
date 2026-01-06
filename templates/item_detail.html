@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row mt-4">
+    <div class="col-md-6">
+        <div class="bg-secondary text-white d-flex align-items-center justify-content-center" style="height: 400px;">
+            <h1>商品图片</h1>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <h2 id="item-name">{{ item.name }}</h2>
+        <p class="text-muted">卖家: {{ item.seller.username }}</p>
+        <p>{{ item.description }}</p>
+        
+        <hr>
+        
+        <div class="card bg-light mb-3">
+            <div class="card-body">
+                <h4 class="card-title">当前最高价: ¥<span id="current-price">{{ item.current_price }}</span></h4>
+                <p class="card-text">
+                    最高出价者: <span id="highest-bidder">
+                        {% if item.highest_bidder %}
+                            {{ item.highest_bidder.username }}
+                        {% else %}
+                            暂无
+                        {% endif %}
+                    </span>
+                </p>
+                
+                <div class="alert alert-info mt-3" id="status-alert">
+                    {% if item.status == 'active' %}
+                        正在拍卖中 - <span id="time-left">计算中...</span>
+                    {% elif item.status == 'ended' %}
+                        拍卖已结束
+                    {% else %}
+                        {{ item.status }}
+                    {% endif %}
+                </div>
+
+                {% if current_user.is_authenticated and current_user.role == 'buyer' and item.status == 'active' %}
+                <div id="bid-form-container">
+                    <div class="input-group mb-3">
+                        <span class="input-group-text">¥</span>
+                        <input type="number" class="form-control" id="bid-amount" placeholder="输入出价金额">
+                        <button class="btn btn-danger" type="button" id="btn-bid">立即出价</button>
+                    </div>
+                    <div class="form-text">每次加价幅度: ¥{{ item.increment }}</div>
+                </div>
+                {% elif not current_user.is_authenticated %}
+                    <a href="{{ url_for('login') }}" class="btn btn-primary">登录以出价</a>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div id="log-area" style="max-height: 200px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; display: none;">
+            <!-- 出价日志 -->
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    var socket = io();
+    var itemId = {{ item.id }};
+    var endTime = new Date("{{ item.end_time.isoformat() }}Z");
+    var status = "{{ item.status }}";
+
+    // 加入房间
+    socket.on('connect', function() {
+        console.log('已连接服务器');
+        socket.emit('join', {room: 'item_' + itemId});
+    });
+
+    // 监听价格更新
+    socket.on('price_update', function(data) {
+        console.log('价格更新:', data);
+        
+        // 更新价格显示
+        document.getElementById('current-price').innerText = data.new_price;
+        document.getElementById('highest-bidder').innerText = data.bidder_name;
+        
+        // 更新倒计时
+        endTime = new Date(data.new_end_time); 
+        
+        // 闪烁提示
+        var priceEl = document.getElementById('current-price');
+        priceEl.style.color = 'red';
+        setTimeout(() => { priceEl.style.color = ''; }, 500);
+
+        if (data.extended) {
+            alert('有人在最后时刻出价，拍卖延长5分钟！');
+        }
+        
+        // 添加日志（可选）
+        var logArea = document.getElementById('log-area');
+        logArea.style.display = 'block';
+        logArea.innerHTML = `<p class="small text-muted mb-0">${new Date().toLocaleTimeString()} - ${data.bidder_name} 出价 ¥${data.new_price}</p>` + logArea.innerHTML;
+    });
+
+    // 监听错误
+    socket.on('error', function(data) {
+        alert(data.msg);
+    });
+    
+    // 监听结束
+    socket.on('auction_ended', function(data) {
+        status = 'ended';
+        document.getElementById('status-alert').innerText = "拍卖已结束。中标者: " + data.winner;
+        document.getElementById('status-alert').className = "alert alert-secondary mt-3";
+        if (document.getElementById('bid-form-container')) {
+            document.getElementById('bid-form-container').style.display = 'none';
+        }
+    });
+
+    // 发送出价
+    var bidBtn = document.getElementById('btn-bid');
+    if (bidBtn) {
+        bidBtn.onclick = function() {
+            var amount = document.getElementById('bid-amount').value;
+            if (!amount) return;
+            socket.emit('bid', {
+                item_id: itemId,
+                amount: amount,
+                user_id: {{ current_user.id if current_user.is_authenticated else 'null' }}
+            });
+            document.getElementById('bid-amount').value = '';
+        };
+    }
+
+    // 倒计时逻辑
+    function updateTimer() {
+        if (status !== 'active') return;
+        
+        var now = new Date();
+        var diff = endTime - now;
+        
+        if (diff <= 0) {
+            document.getElementById('time-left').innerText = "时间到 (等待服务器结算...)";
+            return;
+        }
+        
+        var minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        var seconds = Math.floor((diff % (1000 * 60)) / 1000);
+        
+        document.getElementById('time-left').innerText = "剩余 " + minutes + " 分 " + seconds + " 秒";
+    }
+    
+    setInterval(updateTimer, 1000);
+    updateTimer(); // 立即执行一次
+</script>
+{% endblock %}
