@@ -3,6 +3,7 @@ from extensions import db, socketio, login_manager
 from models import User
 from views import register_views
 from events import register_events
+from chat import register_chat_routes, register_chat_events
 from tasks import check_auctions
 import threading
 import pymysql
@@ -37,7 +38,9 @@ def create_app():
         return User.query.get(int(user_id))
         
     register_views(app)
+    register_chat_routes(app)
     register_events(socketio)
+    register_chat_events(socketio)
     
     return app
 
@@ -97,6 +100,16 @@ if __name__ == '__main__':
             db.create_all() # create_all 只会创建不存在的表
         except:
             pass
+        
+        # 尝试自动创建 ChatSession 表 (手动检查)
+        try:
+             db.session.execute(text("SELECT 1 FROM chat_sessions LIMIT 1"))
+        except:
+             try:
+                 db.create_all()
+                 print(">>> 尝试创建新表 chat_sessions")
+             except:
+                 pass
 
     bg_thread = threading.Thread(target=check_auctions, args=(app,))
     bg_thread.daemon = True

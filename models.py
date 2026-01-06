@@ -60,3 +60,20 @@ class Post(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.now)
     
     user = db.relationship('User', backref=db.backref('posts', lazy=True))
+
+class ChatSession(db.Model):
+    __tablename__ = 'chat_sessions'
+    id = db.Column(db.Integer, primary_key=True)
+    item_id = db.Column(db.Integer, db.ForeignKey('items.id'), nullable=False)
+    buyer_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    seller_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    last_message = db.Column(db.String(255), nullable=True)
+    updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
+    # 简单的未读计数
+    buyer_unread = db.Column(db.Integer, default=0)
+    seller_unread = db.Column(db.Integer, default=0)
+    
+    # Relationships
+    item = db.relationship('Item')
+    buyer = db.relationship('User', foreign_keys=[buyer_id])
+    seller = db.relationship('User', foreign_keys=[seller_id])

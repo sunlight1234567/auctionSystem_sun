@@ -13,14 +13,32 @@ def register_views(app):
 
     # --- 全局 Context Processor ---
     @app.context_processor
-    def inject_pending_count():
-        if current_user.is_authenticated and current_user.role == 'admin':
+    def inject_global_vars():
+        context = {}
+        if current_user.is_authenticated:
+            # 管理员审核计数
+            if current_user.role == 'admin':
+                try:
+                    count = Item.query.filter_by(status='pending').count()
+                    context['pending_count'] = count
+                except:
+                    context['pending_count'] = 0
+            
+            # 未读私信计数
             try:
-                count = Item.query.filter_by(status='pending').count()
-                return dict(pending_count=count)
+                # 需在函数内部导入避免循环依赖，或者假设 models 已加载
+                from models import ChatSession
+                from sqlalchemy import or_
+                
+                # 计算我作为 buyer 的未读 + 我作为 seller 的未读
+                unread = 0
+                buyer_sessions = ChatSession.query.filter_by(buyer_id=current_user.id).filter(ChatSession.buyer_unread > 0).count()
+                seller_sessions = ChatSession.query.filter_by(seller_id=current_user.id).filter(ChatSession.seller_unread > 0).count()
+                context['unread_chats_count'] = buyer_sessions + seller_sessions
             except:
-                return dict(pending_count=0)
-        return dict(pending_count=0)
+                context['unread_chats_count'] = 0
+                
+        return context
 
     @app.route('/')
     @login_required

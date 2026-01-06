@@ -54,8 +54,16 @@
                     </li>
                     {% endif %}
                 </ul>
-                <ul class="navbar-nav">
+                <ul class="navbar-nav align-items-center">
                     {% if current_user.is_authenticated %}
+                    <li class="nav-item me-3">
+                        <a href="{{ url_for('inbox') }}" class="nav-link position-relative text-light" title="收件箱">
+                            <i class="bi bi-chat-text-fill" style="font-size: 1.2rem;"></i>
+                            <span id="inbox-badge" class="position-absolute top-0 start-100 translate-middle p-1 bg-danger border border-light rounded-circle {{ 'd-none' if unread_chats_count == 0 else '' }}">
+                                <span class="visually-hidden">New alerts</span>
+                            </span>
+                        </a>
+                    </li>
                     <li class="nav-item">
                         <a href="{{ url_for('user_profile', user_id=current_user.id) }}" class="nav-link text-light d-flex align-items-center">
                             {% if current_user.avatar %}
@@ -176,6 +184,26 @@
             }
         });
         {% endif %}
+        
+        // 监听新私信通知
+        socket.on('new_chat_notification', function(data) {
+            // 更新红点（如果有）
+            var badge = document.getElementById('inbox-badge');
+            if(badge) {
+                badge.classList.remove('d-none');
+            }
+            
+            // 显示 Toast
+            var toastEl = document.getElementById('notificationToast');
+            if (toastEl) {
+                document.getElementById('notificationBody').innerText = data.msg;
+                var headerEl = toastEl.querySelector('.toast-header strong');
+                if(headerEl) headerEl.innerText = "新消息提醒";
+                
+                var toast = new bootstrap.Toast(toastEl);
+                toast.show();
+            }
+        });
 
         // 全局监听管理员通知
         socket.on('new_pending_item', function(data) {
