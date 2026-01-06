@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                    <div>
+                        <i class="bi bi-chat-dots me-2"></i>
+                        与 <strong>{{ other_user.username }}</strong> 的对话
+                        <small class="d-block text-white-50 mt-1">
+                            关于商品: {{ item.name }}
+                        </small>
+                    </div>
+                    <a href="{{ url_for('item_detail', item_id=item.id) }}" class="btn btn-sm btn-light text-primary">
+                        <i class="bi bi-arrow-left"></i> 返回商品
+                    </a>
+                </div>
+                
+                <div class="card-body bg-light" id="chat-container" style="height: 400px; overflow-y: auto;">
+                    <div class="text-center text-muted small my-3">
+                        -- 这是一个临时会话，记录保存在您的本地浏览器中 --
+                    </div>
+                    <!-- 消息列表 -->
+                    <div id="messages-area"></div>
+                </div>
+                
+                <div class="card-footer bg-white">
+                    <form id="chat-form" class="d-flex">
+                        <input type="text" id="message-input" class="form-control me-2" placeholder="输入消息..." required autocomplete="off">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-send"></i> 发送
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        var socket = io();
+        
+        var currentUserId = {{ current_user.id }};
+        var otherUserId = {{ other_user.id }};
+        var itemId = {{ item.id }};
+        
+        // 生成唯一的房间ID: item_{id}_u_{min}_{max}
+        var u1 = Math.min(currentUserId, otherUserId);
+        var u2 = Math.max(currentUserId, otherUserId);
+        var roomId = 'chat_item_' + itemId + '_' + u1 + '_' + u2;
+        
+        var messagesArea = document.getElementById('messages-area');
+        var chatContainer = document.getElementById('chat-container');
+        var messageInput = document.getElementById('message-input');
+        
+        // 1. 本地存储Key
+        var storageKey = 'auction_chat_' + roomId;
+        
+        // 2. 加载历史消息
+        function loadHistory() {
+            var history = localStorage.getItem(storageKey);
+            if (history) {
+                var messages = JSON.parse(history);
+                messages.forEach(function(msg) {
+                    appendMessage(msg, false); // false = 不要再次保存
+                });
+                scrollToBottom();
+            }
+        }
+        
+        // 3. 渲染消息
+        function appendMessage(data, saveToLocal) {
+            var isMe = (data.sender_id == currentUserId);
+            var alignClass = isMe ? 'justify-content-end' : 'justify-content-start';
+            var bgClass = isMe ? 'bg-primary text-white' : 'bg-white border text-dark';
+            var avatarUrl = data.avatar ? "{{ url_for('static', filename='uploads/') }}" + data.avatar : null;
+            
+            var msgHtml = `
+                <div class="d-flex ${alignClass} mb-3">
+                    ${!isMe ? (avatarUrl ? `<img src="${avatarUrl}" class="rounded-circle me-2" style="width: 32px; height: 32px; object-fit: cover;">` : `<div class="rounded-circle me-2 d-flex align-items-center justify-content-center bg-secondary text-white" style="width: 32px; height: 32px;"><i class="bi bi-person"></i></div>`) : ''}
+                    
+                    <div class="p-2 rounded shadow-sm ${bgClass}" style="max-width: 75%; word-wrap: break-word;">
+                        ${!isMe ? `<div class="small fw-bold mb-1">${data.sender}</div>` : ''}
+                        <div>${data.msg}</div>
+                        <div class="small ${isMe ? 'text-white-50' : 'text-muted'} text-end mt-1" style="font-size: 0.75rem;">
+                            ${new Date(data.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            messagesArea.insertAdjacentHTML('beforeend', msgHtml);
+            
+            if (saveToLocal) {
+                var history = JSON.parse(localStorage.getItem(storageKey) || '[]');
+                history.push(data);
+                localStorage.setItem(storageKey, JSON.stringify(history));
+            }
+        }
+        
+        function scrollToBottom() {
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+        
+        // 4. 初始化
+        loadHistory();
+        
+        socket.emit('join_chat', {room: roomId});
+        
+        // 5. 发送消息
+        document.getElementById('chat-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            var msg = messageInput.value.trim();
+            if(!msg) return;
+            
+            var msgData = {
+                room: roomId,
+                msg: msg,
+                item_id: itemId, // 新增
+                receiver_id: otherUserId, // 新增
+                timestamp: new Date().toISOString()
+            };
+            
+            socket.emit('send_message', msgData);
+            messageInput.value = '';
+        });
+        
+        // 6. 接收消息
+        socket.on('new_message', function(data) {
+            appendMessage(data, true);
+            scrollToBottom();
+        });
+    });
+</script>
+{% endblock %}

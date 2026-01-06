@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row align-items-center mb-3">
+    <div class="col-md-6">
+        <h1>我的订单</h1>
+    </div>
+    <div class="col-md-6">
+        <form action="{{ url_for('my_orders') }}" method="GET" class="d-flex">
+            <input class="form-control me-2" type="search" name="q" placeholder="搜索订单号/商品名/卖家ID/用户名" value="{{ search_query }}" aria-label="Search">
+            <button class="btn btn-outline-primary" type="submit">搜索</button>
+            {% if search_query %}
+            <a href="{{ url_for('my_orders') }}" class="btn btn-outline-secondary ms-2" title="清除搜索"><i class="bi bi-x mx-1"></i></a>
+            {% endif %}
+        </form>
+    </div>
+</div>
+
+<div class="table-responsive mt-3">
+    <table class="table table-striped table-hover">
+        <thead>
+            <tr>
+                <th>图片</th>
+                <th>商品名称</th>
+                <th>成交金额</th>
+                <th>卖家</th>
+                <th>成交时间</th>
+                <th>订单编号</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in items %}
+            <tr>
+                <td style="width: 100px;">
+                    {% if item.images and item.images|length > 0 %}
+                        <img src="{{ url_for('static', filename=item.images[0].image_url) }}" alt="{{ item.name }}" class="img-thumbnail" style="height: 60px; object-fit: cover;">
+                    {% else %}
+                        <div class="bg-secondary text-white d-flex align-items-center justify-content-center" style="height: 60px; width: 60px;">无图</div>
+                    {% endif %}
+                </td>
+                <td>
+                    <a href="{{ url_for('item_detail', item_id=item.id) }}" target="_blank" class="text-decoration-none">
+                        {{ item.name }}
+                    </a>
+                </td>
+                <td class="text-danger fw-bold">¥{{ item.current_price }}</td>
+                <td>
+                    <a href="{{ url_for('user_profile', user_id=item.seller.id) }}" class="text-decoration-none d-flex align-items-center">
+                        {% if item.seller.avatar %}
+                        <img src="{{ url_for('static', filename='uploads/' + item.seller.avatar) }}" class="rounded-circle me-2" style="width: 24px; height: 24px; object-fit: cover;">
+                        {% else %}
+                        <i class="bi bi-person me-1"></i>
+                        {% endif %}
+                        {{ item.seller.username }}
+                    </a>
+                </td>
+                <td>{{ item.end_time.strftime('%Y-%m-%d %H:%M') }}</td>
+                <td>
+                    {% if item.order_hash %}
+                    <span class="text-monospace bg-light border px-1 user-select-all">{{ item.order_hash }}</span>
+                    {% else %}
+                    <span class="text-muted small">无编号</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <a href="{{ url_for('item_detail', item_id=item.id) }}" class="btn btn-sm btn-outline-primary">查看详情</a>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="7" class="text-center py-4">您还没有任何订单。 <a href="{{ url_for('index') }}">去竞拍</a></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Contact Info Modal -->
+<div class="modal fade" id="userInfoModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">卖家信息</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body text-center">
+        <i class="bi bi-person-circle display-4 text-secondary mb-3"></i>
+        <h4 id="modal-username"></h4>
+        <p class="text-muted mb-0">联系电话</p>
+        <p class="fs-5" id="modal-phone">暂无</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-primary" data-bs-dismiss="modal">确定</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function showUserInfo(username, phone) {
+    document.getElementById('modal-username').innerText = username;
+    document.getElementById('modal-phone').innerText = phone && phone != 'None' ? phone : '未提供';
+    new bootstrap.Modal(document.getElementById('userInfoModal')).show();
+}
+</script>
+{% endblock %}

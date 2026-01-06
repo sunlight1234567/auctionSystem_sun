@@ -2,6 +2,54 @@
 
 {% block content %}
 
+<div class="row mb-4">
+    <div class="col-md-8 offset-md-2">
+        <form action="{{ url_for('index') }}" method="GET" class="d-flex">
+            <input class="form-control me-2" type="search" name="q" placeholder="搜索商品名称或卖家..." aria-label="Search" value="{{ search_query }}">
+            <button class="btn btn-outline-success" type="submit">搜索</button>
+            {% if search_query %}
+            <a href="{{ url_for('index') }}" class="btn btn-outline-secondary ms-2" title="清除搜索">重置</a>
+            {% endif %}
+        </form>
+    </div>
+</div>
+
+{% if search_query %}
+<div class="alert alert-light border mb-4">
+    <i class="bi bi-search"></i> 搜索结果: "{{ search_query }}" 
+    {% if not active_items and not upcoming_items and not ended_items and not matched_sellers %}
+    <span class="text-muted ms-2">(未找到相关结果)</span>
+    {% endif %}
+</div>
+
+{% if matched_sellers %}
+<div class="card mb-4">
+    <div class="card-header bg-primary text-white">找到的卖家</div>
+    <div class="list-group list-group-flush">
+        {% for seller in matched_sellers %}
+        <a href="{{ url_for('user_profile', user_id=seller.id) }}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+            <div class="d-flex align-items-center">
+                {% if seller.avatar %}
+                <img src="{{ url_for('static', filename='uploads/' + seller.avatar) }}" class="rounded-circle me-2" style="width: 30px; height: 30px; object-fit: cover;">
+                {% else %}
+                <i class="bi bi-person-circle me-2" style="font-size: 1.2rem;"></i>
+                {% endif %}
+                
+                <div>
+                    <strong>{{ seller.username }}</strong>
+                    {% if seller.phone %}
+                    <span class="text-muted small ms-2"><i class="bi bi-telephone"></i> {{ seller.phone }}</span>
+                    {% endif %}
+                </div>
+            </div>
+            <span class="badge bg-primary rounded-pill">访问主页</span>
+        </a>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+{% endif %}
+
 <!-- 宏定义：用于渲染单个商品卡片 -->
 {% macro render_item_card(item, type) %}
 <div class="col-md-4 mb-4">

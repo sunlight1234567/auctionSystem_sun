@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row align-items-center mb-3">
+    <div class="col-md-6">
+        <h1>我的拍品历史</h1>
+    </div>
+    <div class="col-md-6">
+        <form action="{{ url_for('my_auctions') }}" method="GET" class="d-flex">
+            <input class="form-control me-2" type="search" name="q" placeholder="搜索订单号/商品名/买家ID/用户名" value="{{ search_query }}" aria-label="Search">
+            <button class="btn btn-outline-primary" type="submit">搜索</button>
+            {% if search_query %}
+            <a href="{{ url_for('my_auctions') }}" class="btn btn-outline-secondary ms-2" title="清除搜索"><i class="bi bi-x mx-1"></i></a>
+            {% endif %}
+        </form>
+    </div>
+</div>
+
+<div class="table-responsive mt-3">
+    <table class="table table-striped table-hover">
+        <thead>
+            <tr>
+                <th>图片</th>
+                <th>名称</th>
+                <th>当前价/成交价</th>
+                <th>状态</th>
+                <th>时间信息</th>
+                <th>备注</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in items %}
+            <tr>
+                <td style="width: 100px;">
+                    {% if item.images and item.images|length > 0 %}
+                        <img src="{{ url_for('static', filename=item.images[0].image_url) }}" alt="{{ item.name }}" class="img-thumbnail" style="height: 60px; object-fit: cover;">
+                    {% else %}
+                        <div class="bg-secondary text-white d-flex align-items-center justify-content-center" style="height: 60px; width: 60px;">无图</div>
+                    {% endif %}
+                </td>
+                <td>
+                    <a href="{{ url_for('item_detail', item_id=item.id) }}" target="_blank" class="text-decoration-none">
+                        {{ item.name }}
+                    </a>
+                </td>
+                <td>¥{{ item.current_price }}</td>
+                <td>
+                    {% if item.status == 'pending' %}
+                        <span class="badge bg-warning text-dark">待审核</span>
+                    {% elif item.status == 'approved' %}
+                        <span class="badge bg-info text-dark">即将开始</span>
+                    {% elif item.status == 'active' %}
+                        <span class="badge bg-success">进行中</span>
+                    {% elif item.status == 'ended' %}
+                        <span class="badge bg-secondary">已结束</span>
+                    {% elif item.status == 'rejected' %}
+                        <span class="badge bg-danger">已拒绝</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <small class="d-block">提交: {{ item.created_at.strftime('%Y-%m-%d') }}</small>
+                    {% if item.status == 'active' or item.status == 'approved' %}
+                        <small class="d-block text-primary">结束: {{ item.end_time.strftime('%m-%d %H:%M') }}</small>
+                    {% elif item.status == 'ended' %}
+                        <small class="d-block text-muted">结束: {{ item.end_time.strftime('%m-%d %H:%M') }}</small>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if item.status == 'rejected' and item.rejection_reason %}
+                        <span class="text-danger small" title="{{ item.rejection_reason }}">拒绝原因: {{ item.rejection_reason[:15] }}...</span>
+                    {% elif item.status == 'ended' and item.highest_bidder %}
+                        <span class="text-success small">
+                            买家: <a href="{{ url_for('user_profile', user_id=item.highest_bidder.id) }}">{{ item.highest_bidder.username }}</a>
+                        </span>
+                        {% if item.order_hash %}
+                        <br><span class="text-muted small user-select-all" title="订单编号">{{ item.order_hash }}</span>
+                        {% endif %}
+                    {% elif item.status == 'ended' %}
+                        <span class="text-muted small">流拍</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <a href="{{ url_for('item_detail', item_id=item.id) }}" class="btn btn-sm btn-outline-primary">查看</a>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="7" class="text-center py-4">您还没有发布过任何拍品。 <a href="{{ url_for('publish') }}">去发布</a></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Buyer Info Modal -->
+<div class="modal fade" id="buyerInfoModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">买家信息</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body text-center">
+        <h4 id="buyer-modal-username"></h4>
+        <p class="text-muted mb-0">联系电话</p>
+        <p class="fs-5" id="buyer-modal-phone">暂无</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-primary" data-bs-dismiss="modal">确定</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function showBuyerInfo(username, phone) {
+    document.getElementById('buyer-modal-username').innerText = username;
+    document.getElementById('buyer-modal-phone').innerText = phone && phone != 'None' ? phone : '未提供';
+    new bootstrap.Modal(document.getElementById('buyerInfoModal')).show();
+}
+</script>
+{% endblock %}
