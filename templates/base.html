@@ -29,6 +29,14 @@
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('publish') }}">发布拍品</a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('my_auctions') }}">我的拍品</a>
+                    </li>
+                    {% endif %}
+                    {% if current_user.is_authenticated and current_user.role == 'buyer' %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('my_orders') }}">我的订单</a>
+                    </li>
                     {% endif %}
                     {% if current_user.is_authenticated and current_user.role == 'admin' %}
                     <li class="nav-item">
@@ -128,13 +136,34 @@
              socket.emit('join_check', {});
         });
         
-        // 如果有pending_count且大于0，自动显示Toast
+        // 如果有pending_count且大于0，按逻辑显示Toast
         {% if current_user.is_authenticated and current_user.role == 'admin' and pending_count > 0 %}
         document.addEventListener('DOMContentLoaded', function() {
             var toastEl = document.getElementById('adminToast');
             if (toastEl) {
-                var toast = new bootstrap.Toast(toastEl);
-                toast.show();
+                var currentCount = {{ pending_count }};
+                var dismissedKey = 'admin_toast_dismissed_count';
+                var lastDismissed = parseInt(localStorage.getItem(dismissedKey) || 0);
+
+                // 逻辑：
+                // 1. 如果当前数量 > 上次关闭时的数量 ==> 有新增，显示
+                // 2. 如果当前数量 < 上次关闭时的数量 ==> 处理了部分，重置基准，但不用显示（因为是减少）
+                // 3. 如果相等 ==> 关闭过，不再显示
+                
+                if (currentCount < lastDismissed) {
+                    // 状态重置：如果数量减少了（如审核通过了），更新基准，避免下次新增时无法触发 (e.g. 5->3, set 3. new item->4. 4>3 show)
+                    localStorage.setItem(dismissedKey, currentCount);
+                } else if (currentCount > lastDismissed) {
+                    // 有新增，显示
+                    var toast = new bootstrap.Toast(toastEl);
+                    toast.show();
+                }
+
+                // 监听手动关闭事件
+                toastEl.addEventListener('hidden.bs.toast', function () {
+                    // 关闭时，记录当前已知数量
+                    localStorage.setItem(dismissedKey, currentCount);
+                });
             }
         });
         {% endif %}

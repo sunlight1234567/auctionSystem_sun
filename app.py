@@ -9,6 +9,7 @@ import os
 import threading
 import time
 import pymysql
+import hashlib
 
 # 确保pymysql可以被SQLAlchemy作为mysqldb使用
 pymysql.install_as_MySQLdb()
@@ -76,6 +77,7 @@ class Item(db.Model):
     status = db.Column(db.String(20), default='pending') 
     rejection_reason = db.Column(db.String(255), nullable=True) # 拒绝理由
     highest_bidder_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    order_hash = db.Column(db.String(64), nullable=True) # 订单哈希 (SHA256 hex digest is 64 chars)
     created_at = db.Column(db.DateTime, default=datetime.now)
     
     seller = db.relationship('User', foreign_keys=[seller_id])
@@ -117,9 +119,21 @@ def check_auctions():
                 expired_items = Item.query.filter(Item.status == 'active', Item.end_time <= now).all()
                 for item in expired_items:
                     item.status = 'ended'
+                    
+                    # 如果有获胜者，生成订单哈希
+                    if item.highest_bidder_id:
+                        # 生成易读的订单编号：ORD + 年月日时分秒 + 4位商品ID (例: ORD202401011200000005)
+                        # 这种格式方便后续检索和客服查询
+                        timestamp_str = datetime.now().strftime('%Y%m%d%H%M%S')
+                        item.order_hash = f"ORD{timestamp_str}{item.id:04d}"
+
                     db.session.commit()
                     winner_name = item.highest_bidder.username if item.highest_bidder else '无人出价'
-                    socketio.emit('auction_ended', {'item_id': item.id, 'winner': winner_name}, room=f"item_{item.id}")
+                    socketio.emit('auction_ended', {
+                        'item_id': item.id, 
+                        'winner': winner_name,
+                        'order_hash': item.order_hash
+                    }, room=f"item_{item.id}")
 
                 # 2. 检查已到开拍时间的 'approved' 拍卖 -> 'active'
                 starting_items = Item.query.filter(Item.status == 'approved', Item.start_time <= now).all()
@@ -204,8 +218,19 @@ def publish():
     if request.method == 'POST':
         name = request.form.get('name')
         description = request.form.get('description')
-        start_price = float(request.form.get('start_price'))
-        duration = int(request.form.get('duration')) 
+        start_price_val = request.form.get('start_price')
+        duration_val = request.form.get('duration')
+
+        if not name or not description or not start_price_val or not duration_val:
+            flash('请填写所有必填字段（名称、描述、起拍价、时长）')
+            return redirect(request.url)
+
+        try:
+            start_price = float(start_price_val)
+            duration = int(duration_val)
+        except ValueError:
+            flash('价格或时长格式无效')
+            return redirect(request.url) 
         
         start_time_str = request.form.get('start_time')
         if start_time_str:
@@ -220,6 +245,12 @@ def publish():
 
         end_time = start_time + timedelta(minutes=duration)
         
+        # 验证图片上传
+        files = request.files.getlist('images')
+        if not files or not any(f.filename for f in files):
+            flash('请至少上传一张商品图片')
+            return redirect(request.url)
+
         new_item = Item(
             seller_id=current_user.id,
             name=name,
@@ -264,6 +295,24 @@ def publish():
         return redirect(url_for('index'))
         
     return render_template('publish.html')
+
+@app.route('/my_auctions')
+@login_required
+def my_auctions():
+    if current_user.role != 'seller':
+        flash('只有卖家可以查看发布历史')
+        return redirect(url_for('index'))
+    
+    # 获取当前用户发布的所有商品，按时间倒序排列
+    my_items = Item.query.filter_by(seller_id=current_user.id).order_by(Item.created_at.desc()).all()
+    return render_template('my_auctions.html', items=my_items)
+
+@app.route('/my_orders')
+@login_required
+def my_orders():
+    # 获取当前用户赢得的所有拍品 (status='ended' 且 highest_bidder_id=current_user.id)
+    orders = Item.query.filter_by(status='ended', highest_bidder_id=current_user.id).order_by(Item.end_time.desc()).all()
+    return render_template('my_orders.html', items=orders)
 
 @app.route('/item/<int:item_id>')
 @login_required
@@ -440,6 +489,14 @@ if __name__ == '__main__':
         except Exception as e:
             # 忽略错误，假设字段已存在
             print(f">>> 尝试添加字段跳过 (可能已存在): {e}")
+
+        # 尝试自动迁移添加 order_hash 字段 (如果不存在)
+        try:
+            db.session.execute(text("ALTER TABLE items ADD COLUMN order_hash VARCHAR(64)"))
+            db.session.commit()
+            print(">>> 成功添加 order_hash 字段")
+        except Exception as e:
+            pass 
 
         try:
             # 尝试创建一个默认管理员，防止数据库是空的

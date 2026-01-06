@@ -121,6 +121,7 @@
                     <th>成交价</th>
                     <th>卖家</th>
                     <th>获胜者</th>
+                    <th>订单编号</th>
                     <th>结束时间</th>
                     <th>操作</th>
                 </tr>
@@ -133,6 +134,15 @@
                     <td>¥{{ item.current_price }}</td>
                     <td>{{ item.seller.username }}</td>
                     <td>{{ item.highest_bidder.username if item.highest_bidder else '流拍' }}</td>
+                    <td>
+                        {% if item.order_hash %}
+                        <span class="user-select-all" title="{{ item.order_hash }}">
+                            {{ item.order_hash }}
+                        </span>
+                        {% else %}
+                        -
+                        {% endif %}
+                    </td>
                     <td><small>{{ item.end_time.strftime('%Y-%m-%d %H:%M') }}</small></td>
                     <td>
                          <a href="{{ url_for('item_detail', item_id=item.id) }}" target="_blank" class="btn btn-secondary btn-sm">查看详情</a>

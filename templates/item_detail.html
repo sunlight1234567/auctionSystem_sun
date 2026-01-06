@@ -54,6 +54,14 @@
                         正在拍卖中 - <span id="time-left">计算中...</span>
                     {% elif item.status == 'ended' %}
                         拍卖已结束
+                        {% if item.order_hash %}
+                        <div class="mt-2 pt-2 border-top">
+                            <strong>订单编号:</strong>
+                            <div class="font-monospace small bg-light p-1 border rounded user-select-all">
+                                {{ item.order_hash }}
+                            </div>
+                        </div>
+                        {% endif %}
                     {% else %}
                         {{ item.status }}
                     {% endif %}
@@ -126,7 +134,7 @@
 
     // var socket = io(); // Removed to use shared socket
     var itemId = {{ item.id }};
-    var endTime = new Date("{{ item.end_time.isoformat() }}Z");
+    var endTime = new Date("{{ item.end_time.isoformat() }}");
     var status = "{{ item.status }}";
 
     // 加入房间
@@ -169,7 +177,18 @@
     // 监听结束
     socket.on('auction_ended', function(data) {
         status = 'ended';
-        document.getElementById('status-alert').innerText = "拍卖已结束。中标者: " + data.winner;
+        var statusHtml = "拍卖已结束。中标者: " + data.winner;
+        
+        if (data.order_hash) {
+            statusHtml += `<div class="mt-2 pt-2 border-top">
+                            <strong>订单编号:</strong>
+                            <div class="font-monospace small bg-light p-1 border rounded user-select-all">
+                                ${data.order_hash}
+                            </div>
+                        </div>`;
+        }
+        
+        document.getElementById('status-alert').innerHTML = statusHtml;
         document.getElementById('status-alert').className = "alert alert-secondary mt-3";
         if (document.getElementById('bid-form-container')) {
             document.getElementById('bid-form-container').style.display = 'none';

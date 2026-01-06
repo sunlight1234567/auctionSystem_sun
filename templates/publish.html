@@ -13,12 +13,12 @@
                     </div>
                     <div class="mb-3">
                         <label for="description" class="form-label">描述</label>
-                        <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+                        <textarea class="form-control" id="description" name="description" rows="3" required></textarea>
                     </div>
                     <!-- 图片上传部分 -->
                     <div class="mb-3">
                         <label for="images" class="form-label">商品图片</label>
-                        <input type="file" class="form-control" id="images" name="images" accept="image/*" multiple>
+                        <input type="file" class="form-control" id="images" name="images" accept="image/*" multiple required>
                         <div class="form-text">支持多选，上传清晰图片有助于成交。</div>
                     </div>
                     <div class="mb-3">
@@ -34,6 +34,16 @@
                         <input type="number" class="form-control" id="duration" name="duration" value="60" required>
                         <div class="form-text">审核通过后开始计时。</div>
                     </div>
+                    
+                    <div class="d-flex justify-content-between mb-3">
+                        <button type="button" class="btn btn-outline-info" data-bs-toggle="modal" data-bs-target="#draftModal" onclick="loadDraftList()">
+                            打开草稿箱
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" onclick="saveDraft()">
+                            保存当前草稿
+                        </button>
+                    </div>
+
                     <button type="submit" class="btn btn-primary">提交审核</button>
                     <a href="{{ url_for('index') }}" class="btn btn-secondary">取消</a>
                 </form>
@@ -41,4 +51,107 @@
         </div>
     </div>
 </div>
+
+<!-- Draft Modal -->
+<div class="modal fade" id="draftModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">我的草稿箱</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-warning small">注意：草稿仅保存在当前浏览器中，且不会保存已选择的图片文件。</div>
+        <div class="list-group" id="draftList">
+           <!-- Initial Content -->
+           <div class="text-center py-3">加载中...</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const STORAGE_KEY = 'auction_seller_drafts_v1';
+
+    function getDrafts() {
+        const drafts = localStorage.getItem(STORAGE_KEY);
+        return drafts ? JSON.parse(drafts) : [];
+    }
+
+    function saveDraft() {
+        const name = document.getElementById('name').value;
+        if (!name) {
+            alert('请至少填写商品名称以便识别草稿');
+            return;
+        }
+
+        const draft = {
+            id: Date.now(),
+            savedAt: new Date().toLocaleString(),
+            name: name,
+            description: document.getElementById('description').value,
+            start_price: document.getElementById('start_price').value,
+            start_time: document.getElementById('start_time').value,
+            duration: document.getElementById('duration').value
+        };
+
+        const drafts = getDrafts();
+        drafts.unshift(draft); // Add to top
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(drafts));
+        alert('草稿已保存');
+    }
+
+    function loadDraftList() {
+        const drafts = getDrafts();
+        const listEl = document.getElementById('draftList');
+        
+        if (drafts.length === 0) {
+            listEl.innerHTML = '<div class="text-center text-muted py-3">暂无草稿</div>';
+            return;
+        }
+
+        let html = '';
+        drafts.forEach((draft, index) => {
+            html += `
+            <div class="list-group-item d-flex justify-content-between align-items-center">
+                <div>
+                    <h6 class="mb-1 text-truncate" style="max-width: 300px;">${draft.name}</h6>
+                    <small class="text-muted">保存时间: ${draft.savedAt}</small>
+                </div>
+                <div>
+                    <button class="btn btn-sm btn-primary me-2" onclick="restoreDraft(${draft.id})" data-bs-dismiss="modal">读取</button>
+                    <button class="btn btn-sm btn-danger" onclick="deleteDraft(${index})">删除</button>
+                </div>
+            </div>`;
+        });
+        listEl.innerHTML = html;
+    }
+
+    function restoreDraft(id) {
+        const drafts = getDrafts();
+        const draft = drafts.find(d => d.id === id);
+        if (draft) {
+            document.getElementById('name').value = draft.name || '';
+            document.getElementById('description').value = draft.description || '';
+            document.getElementById('start_price').value = draft.start_price || '';
+            document.getElementById('start_time').value = draft.start_time || '';
+            document.getElementById('duration').value = draft.duration || '';
+            alert('草稿已读取（请重新选择图片）');
+        }
+    }
+
+    function deleteDraft(index) {
+        if (!confirm('确定删除此草稿吗？')) return;
+        const drafts = getDrafts();
+        drafts.splice(index, 1);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(drafts));
+        loadDraftList(); // Refresh list
+    }
+</script>
 {% endblock %}
