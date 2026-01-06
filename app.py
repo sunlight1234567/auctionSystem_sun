@@ -25,7 +25,7 @@ def create_app():
     app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max-limit
     
     # --- 数据库配置 (请根据实际情况修改) ---
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:12345@localhost/Auction'
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:123456@localhost/Auction'
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
     db.init_app(app)
@@ -130,9 +130,8 @@ if __name__ == '__main__':
              except:
                  pass
 
-    bg_thread = threading.Thread(target=check_auctions, args=(app,))
-    bg_thread.daemon = True
-    bg_thread.start()
+    # Start background task using socketio helper for better compatibility
+    socketio.start_background_task(check_auctions, app)
     
     # host='0.0.0.0' 使其他设备可访问
     socketio.run(app, host='0.0.0.0', port=5000, debug=True, allow_unsafe_werkzeug=True)
