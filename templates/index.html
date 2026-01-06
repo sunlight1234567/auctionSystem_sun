@@ -2,6 +2,27 @@
 
 {% block content %}
 
+<div class="row mb-4">
+    <div class="col-md-8 offset-md-2">
+        <form action="{{ url_for('index') }}" method="GET" class="d-flex">
+            <input class="form-control me-2" type="search" name="q" placeholder="搜索商品名称或卖家..." aria-label="Search" value="{{ search_query }}">
+            <button class="btn btn-outline-success" type="submit">搜索</button>
+            {% if search_query %}
+            <a href="{{ url_for('index') }}" class="btn btn-outline-secondary ms-2" title="清除搜索">重置</a>
+            {% endif %}
+        </form>
+    </div>
+</div>
+
+{% if search_query %}
+<div class="alert alert-light border mb-4">
+    <i class="bi bi-search"></i> 搜索结果: "{{ search_query }}" 
+    {% if not active_items and not upcoming_items and not ended_items %}
+    <span class="text-muted ms-2">(未找到相关结果)</span>
+    {% endif %}
+</div>
+{% endif %}
+
 <!-- 宏定义：用于渲染单个商品卡片 -->
 {% macro render_item_card(item, type) %}
 <div class="col-md-4 mb-4">

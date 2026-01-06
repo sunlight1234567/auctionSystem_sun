@@ -36,7 +36,11 @@
                     </a>
                 </td>
                 <td class="text-danger fw-bold">¥{{ item.current_price }}</td>
-                <td>{{ item.seller.username }}</td>
+                <td>
+                    <button type="button" class="btn btn-link text-decoration-none p-0" onclick="showUserInfo('{{ item.seller.username }}', '{{ item.seller.phone }}')">
+                        {{ item.seller.username }}
+                    </button>
+                </td>
                 <td>{{ item.end_time.strftime('%Y-%m-%d %H:%M') }}</td>
                 <td>
                     {% if item.order_hash %}
@@ -57,4 +61,33 @@
         </tbody>
     </table>
 </div>
+
+<!-- Contact Info Modal -->
+<div class="modal fade" id="userInfoModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">卖家信息</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body text-center">
+        <i class="bi bi-person-circle display-4 text-secondary mb-3"></i>
+        <h4 id="modal-username"></h4>
+        <p class="text-muted mb-0">联系电话</p>
+        <p class="fs-5" id="modal-phone">暂无</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-primary" data-bs-dismiss="modal">确定</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function showUserInfo(username, phone) {
+    document.getElementById('modal-username').innerText = username;
+    document.getElementById('modal-phone').innerText = phone && phone != 'None' ? phone : '未提供';
+    new bootstrap.Modal(document.getElementById('userInfoModal')).show();
+}
+</script>
 {% endblock %}

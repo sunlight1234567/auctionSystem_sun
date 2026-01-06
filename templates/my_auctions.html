@@ -61,7 +61,9 @@
                     {% if item.status == 'rejected' and item.rejection_reason %}
                         <span class="text-danger small" title="{{ item.rejection_reason }}">拒绝原因: {{ item.rejection_reason[:15] }}...</span>
                     {% elif item.status == 'ended' and item.highest_bidder %}
-                        <span class="text-success small">买家: {{ item.highest_bidder.username }}</span>
+                        <span class="text-success small">
+                            买家: <a href="#" onclick="showBuyerInfo('{{ item.highest_bidder.username }}', '{{ item.highest_bidder.phone }}'); return false;">{{ item.highest_bidder.username }}</a>
+                        </span>
                         {% if item.order_hash %}
                         <br><span class="text-muted small user-select-all" title="订单编号">{{ item.order_hash }}</span>
                         {% endif %}
@@ -81,4 +83,32 @@
         </tbody>
     </table>
 </div>
+
+<!-- Buyer Info Modal -->
+<div class="modal fade" id="buyerInfoModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">买家信息</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body text-center">
+        <h4 id="buyer-modal-username"></h4>
+        <p class="text-muted mb-0">联系电话</p>
+        <p class="fs-5" id="buyer-modal-phone">暂无</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-primary" data-bs-dismiss="modal">确定</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function showBuyerInfo(username, phone) {
+    document.getElementById('buyer-modal-username').innerText = username;
+    document.getElementById('buyer-modal-phone').innerText = phone && phone != 'None' ? phone : '未提供';
+    new bootstrap.Modal(document.getElementById('buyerInfoModal')).show();
+}
+</script>
 {% endblock %}

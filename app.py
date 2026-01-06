@@ -61,6 +61,7 @@ class User(UserMixin, db.Model):
     # schema.sql 中字段名为 password_hash
     password_hash = db.Column(db.String(128), nullable=False) 
     role = db.Column(db.String(20), nullable=False)
+    phone = db.Column(db.String(20), nullable=True) # 新增：联系电话
     created_at = db.Column(db.DateTime, default=datetime.now)
 
 class Item(db.Model):
@@ -153,15 +154,32 @@ def check_auctions():
 @login_required
 def index():
     try:
-        # 分类获取不同状态的拍卖物品
-        active_items = Item.query.filter_by(status='active').order_by(Item.end_time).all()
-        upcoming_items = Item.query.filter_by(status='approved').order_by(Item.start_time).all()
-        ended_items = Item.query.filter_by(status='ended').order_by(Item.end_time.desc()).limit(12).all() # 限制显示最近结束的12个
+        query = request.args.get('q', '')
+        
+        # 基础查询构造器
+        def get_base_query(status_list):
+            q_obj = Item.query.filter(Item.status.in_(status_list))
+            if query:
+                # 联表查询：匹配商品名 或 卖家用户名
+                q_obj = q_obj.join(User, Item.seller_id == User.id).filter(
+                    (Item.name.like(f'%{query}%')) | (User.username.like(f'%{query}%'))
+                )
+            return q_obj
+
+        # 分类获取不同状态的拍卖物品 (应用搜索过滤)
+        active_items = get_base_query(['active']).order_by(Item.end_time).all()
+        upcoming_items = get_base_query(['approved']).order_by(Item.start_time).all()
+        
+        # 结束的也搜一下
+        ended_query = get_base_query(['ended']).order_by(Item.end_time.desc())
+        # 如果是搜索模式，可能想看更多历史结果，暂时不去掉limit，或者设大一点
+        ended_items = ended_query.limit(12).all()
         
         return render_template('index.html', 
                              active_items=active_items, 
                              upcoming_items=upcoming_items, 
-                             ended_items=ended_items)
+                             ended_items=ended_items,
+                             search_query=query)
     except Exception as e:
         return f"<h3>数据库连接失败</h3><p>请检查 app.py 中的数据库密码配置。</p><p>错误详情: {e}</p>"
 
@@ -185,6 +203,7 @@ def register():
         username = request.form.get('username')
         password = request.form.get('password')
         confirm_password = request.form.get('confirm_password')
+        phone = request.form.get('phone') # 获取电话
         role = request.form.get('role')
         
         if password != confirm_password:
@@ -195,7 +214,7 @@ def register():
              flash('无效的角色选择')
         else:
             # 同样，这里存入 password_hash 字段的是明文，正式项目请加密
-            new_user = User(username=username, password_hash=password, role=role)
+            new_user = User(username=username, password_hash=password, role=role, phone=phone)
             db.session.add(new_user)
             db.session.commit()
             login_user(new_user)
@@ -495,6 +514,14 @@ if __name__ == '__main__':
             db.session.execute(text("ALTER TABLE items ADD COLUMN order_hash VARCHAR(64)"))
             db.session.commit()
             print(">>> 成功添加 order_hash 字段")
+        except Exception as e:
+            pass 
+
+        # 尝试自动迁移添加 phone 字段
+        try:
+            db.session.execute(text("ALTER TABLE users ADD COLUMN phone VARCHAR(20)"))
+            db.session.commit()
+            print(">>> 成功添加 phone 字段")
         except Exception as e:
             pass 
 
