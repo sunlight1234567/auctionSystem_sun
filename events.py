@@ -1,0 +1,80 @@
+from flask import request
+from flask_socketio import emit, join_room
+from flask_login import current_user
+from datetime import datetime, timedelta
+from extensions import db, socketio
+from models import Item, Bid
+
+def register_events(socketio):
+    @socketio.on('connect')
+    def handle_connect():
+        if current_user.is_authenticated:
+            join_room(f"user_{current_user.id}")
+            print(f"User {current_user.username} (ID: {current_user.id}) joined room user_{current_user.id}")
+
+    @socketio.on('join_check')
+    def on_join_check(data):
+        """前端连接后发送此事件，用于加入特定权限房间"""
+        if current_user.is_authenticated and current_user.role == 'admin':
+            join_room('admin_room')
+
+    @socketio.on('join')
+    def on_join(data):
+        room = data['room']
+        join_room(room)
+
+    @socketio.on('bid')
+    def on_bid(data):
+        if not current_user.is_authenticated:
+            return
+            
+        item_id = data['item_id']
+        amount = float(data['amount'])
+        
+        item = Item.query.get(item_id)
+        
+        if not item or item.status != 'active':
+            return
+            
+        if datetime.now() > item.end_time:
+            item.status = 'ended'
+            db.session.commit()
+            emit('error', {'msg': '拍卖已结束'}, room=f"item_{item_id}")
+            return
+
+        # Decimal 转 float 比较
+        current_price_float = float(item.current_price)
+        increment_float = float(item.increment)
+        start_price_float = float(item.start_price)
+
+        min_bid = current_price_float + (increment_float if item.highest_bidder else 0)
+        if item.highest_bidder is None:
+            min_bid = start_price_float
+        else:
+            min_bid = current_price_float + increment_float
+
+        if amount < min_bid:
+            emit('error', {'msg': f'出价必须高于 {min_bid}'}, room=request.sid)
+            return
+
+        # 防狙击
+        time_left = item.end_time - datetime.now()
+        extended = False
+        if time_left < timedelta(minutes=3):
+            item.end_time += timedelta(minutes=5)
+            extended = True
+
+        item.current_price = amount
+        item.highest_bidder_id = current_user.id
+        
+        new_bid = Bid(item_id=item.id, user_id=current_user.id, amount=amount)
+        db.session.add(new_bid)
+        db.session.commit()
+        
+        response = {
+            'new_price': amount,
+            'bidder_name': current_user.username,
+            'new_end_time': item.end_time.isoformat(), 
+            'extended': extended
+        }
+        emit('price_update', response, room=f"item_{item_id}")

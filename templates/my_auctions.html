@@ -1,9 +1,18 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="row">
-    <div class="col-md-12">
+<div class="row align-items-center mb-3">
+    <div class="col-md-6">
         <h1>我的拍品历史</h1>
+    </div>
+    <div class="col-md-6">
+        <form action="{{ url_for('my_auctions') }}" method="GET" class="d-flex">
+            <input class="form-control me-2" type="search" name="q" placeholder="搜索订单号/商品名/买家ID/用户名" value="{{ search_query }}" aria-label="Search">
+            <button class="btn btn-outline-primary" type="submit">搜索</button>
+            {% if search_query %}
+            <a href="{{ url_for('my_auctions') }}" class="btn btn-outline-secondary ms-2" title="清除搜索"><i class="bi bi-x mx-1"></i></a>
+            {% endif %}
+        </form>
     </div>
 </div>
 
@@ -62,7 +71,7 @@
                         <span class="text-danger small" title="{{ item.rejection_reason }}">拒绝原因: {{ item.rejection_reason[:15] }}...</span>
                     {% elif item.status == 'ended' and item.highest_bidder %}
                         <span class="text-success small">
-                            买家: <a href="#" onclick="showBuyerInfo('{{ item.highest_bidder.username }}', '{{ item.highest_bidder.phone }}'); return false;">{{ item.highest_bidder.username }}</a>
+                            买家: <a href="{{ url_for('user_profile', user_id=item.highest_bidder.id) }}">{{ item.highest_bidder.username }}</a>
                         </span>
                         {% if item.order_hash %}
                         <br><span class="text-muted small user-select-all" title="订单编号">{{ item.order_hash }}</span>

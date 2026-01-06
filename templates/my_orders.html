@@ -1,9 +1,18 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="row">
-    <div class="col-md-12">
+<div class="row align-items-center mb-3">
+    <div class="col-md-6">
         <h1>我的订单</h1>
+    </div>
+    <div class="col-md-6">
+        <form action="{{ url_for('my_orders') }}" method="GET" class="d-flex">
+            <input class="form-control me-2" type="search" name="q" placeholder="搜索订单号/商品名/卖家ID/用户名" value="{{ search_query }}" aria-label="Search">
+            <button class="btn btn-outline-primary" type="submit">搜索</button>
+            {% if search_query %}
+            <a href="{{ url_for('my_orders') }}" class="btn btn-outline-secondary ms-2" title="清除搜索"><i class="bi bi-x mx-1"></i></a>
+            {% endif %}
+        </form>
     </div>
 </div>
 
@@ -37,9 +46,14 @@
                 </td>
                 <td class="text-danger fw-bold">¥{{ item.current_price }}</td>
                 <td>
-                    <button type="button" class="btn btn-link text-decoration-none p-0" onclick="showUserInfo('{{ item.seller.username }}', '{{ item.seller.phone }}')">
+                    <a href="{{ url_for('user_profile', user_id=item.seller.id) }}" class="text-decoration-none d-flex align-items-center">
+                        {% if item.seller.avatar %}
+                        <img src="{{ url_for('static', filename='uploads/' + item.seller.avatar) }}" class="rounded-circle me-2" style="width: 24px; height: 24px; object-fit: cover;">
+                        {% else %}
+                        <i class="bi bi-person me-1"></i>
+                        {% endif %}
                         {{ item.seller.username }}
-                    </button>
+                    </a>
                 </td>
                 <td>{{ item.end_time.strftime('%Y-%m-%d %H:%M') }}</td>
                 <td>

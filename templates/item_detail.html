@@ -31,7 +31,20 @@
     </div>
     <div class="col-md-6">
         <h2 id="item-name">{{ item.name }}</h2>
-        <p class="text-muted">卖家: {{ item.seller.username }}</p>
+        <div class="d-flex align-items-center mb-3">
+            <span class="text-muted me-2">卖家:</span>
+            <a href="{{ url_for('user_profile', user_id=item.seller.id) }}" class="d-flex align-items-center text-decoration-none">
+                {% if item.seller.avatar %}
+                <img src="{{ url_for('static', filename='uploads/' + item.seller.avatar) }}" class="rounded-circle me-2 border" style="width: 30px; height: 30px; object-fit: cover;">
+                {% else %}
+                <i class="bi bi-person-circle me-2"></i>
+                {% endif %}
+                <strong>{{ item.seller.username }}</strong>
+                {% if item.seller.phone %}
+                <span class="text-muted small ms-2"><i class="bi bi-telephone"></i> {{ item.seller.phone }}</span>
+                {% endif %}
+            </a>
+        </div>
         <p>{{ item.description }}</p>
         
         <hr>
@@ -54,7 +67,7 @@
                         正在拍卖中 - <span id="time-left">计算中...</span>
                     {% elif item.status == 'ended' %}
                         拍卖已结束
-                        {% if item.order_hash %}
+                        {% if item.order_hash and current_user.is_authenticated and (current_user.id == item.seller_id or current_user.id == item.highest_bidder_id or current_user.role == 'admin') %}
                         <div class="mt-2 pt-2 border-top">
                             <strong>订单编号:</strong>
                             <div class="font-monospace small bg-light p-1 border rounded user-select-all">
