@@ -1,8 +1,8 @@
-from models import User, Item, ChatSession
+from models import User, Item, ChatSession, Message
 from extensions import db, socketio
 from datetime import datetime
 
-def send_system_message(item_id, receiver_id, content):
+def send_system_message(item_id, receiver_id, content, skip_notification=False):
     """
     发送系统消息（以管理员身份）到用户的收件箱
     """
@@ -10,6 +10,7 @@ def send_system_message(item_id, receiver_id, content):
         # 获取管理员账户
         admin = User.query.filter_by(role='admin').first()
         if not admin:
+            # 尝试查找任意管理员，或者如果不存则需要手动创建（这里假设至少有一个）
             print("System Message Error: No admin user found.")
             return
 
@@ -41,7 +42,17 @@ def send_system_message(item_id, receiver_id, content):
         if not session:
             session = ChatSession(item_id=item_id, buyer_id=b_id, seller_id=s_id)
             db.session.add(session)
+            db.session.flush() # 获取 session.id
             
+        # 记录消息到数据库
+        new_msg = Message(
+            chat_session_id=session.id,
+            sender_id=admin.id,
+            content=content,
+            timestamp=datetime.now()
+        )
+        db.session.add(new_msg)
+
         # 更新消息内容
         session.last_message = f"[系统通知] {content}"
         session.updated_at = datetime.now()
@@ -58,14 +69,29 @@ def send_system_message(item_id, receiver_id, content):
             session.seller_unread += 1
             
         db.session.commit()
-        print(f"System message sent to User {receiver_id}: {content}")
         
-        # 发送实时通知以更新前端红点和弹窗
-        try:
-            socketio.emit('new_chat_notification', {'msg': content}, room=f"user_{receiver_id}")
-        except Exception as e:
-            print(f"Socket emit in send_system_message failed: {e}")
-            
+        # 实时推送通知 (如果在线)
+        # 注意：socketio event 需要和前端 chat.js 监听的一致
+        # 前端 chat.js 有监听 'new_message' 用于当前聊天窗口，和 'new_chat_notification' 用于全局提示
+        
+        # 1. 全局提示
+        if not skip_notification:
+            socketio.emit('new_chat_notification', {'msg': '您有一条新系统消息'}, room=f"user_{receiver_id}")
+        
+        # 2. 如果用户恰好打开了这个对话窗口 (room id规则见 chat.html)
+        # room = 'chat_item_{item_id}_{min_uid}_{max_uid}'
+        u1 = min(b_id, s_id)
+        u2 = max(b_id, s_id)
+        room_id = f'chat_item_{item_id}_{u1}_{u2}'
+        
+        socketio.emit('new_message', {
+            'sender': '管理员',
+            'sender_id': admin.id,
+            'msg': content,
+            'timestamp': new_msg.timestamp.isoformat(),
+            'item_id': item_id,
+            'avatar': admin.avatar
+        }, room=room_id)
+
     except Exception as e:
         print(f"Failed to send system message: {e}")
-        db.session.rollback()

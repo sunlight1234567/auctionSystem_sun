@@ -123,9 +123,10 @@
               <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast" aria-label="Close"></button>
             </div>
             <div class="toast-body" id="adminToastBody">
-               当前有 <strong>{{ pending_count }}</strong> 个拍品等待审核。
+               当前有 <strong>{{ pending_count|default(0) }}</strong> 个待处理事项(审核/申诉)。
                <div class="mt-2 pt-2 border-top">
-                   <a href="{{ url_for('admin_dashboard') }}" class="btn btn-sm btn-light text-dark fw-bold w-100">立即处理</a>
+                   <a href="{{ url_for('admin_audit') }}" class="btn btn-sm btn-light text-dark fw-bold w-100">前往审核</a>
+                   <a href="{{ url_for('admin_appeals') }}" class="btn btn-sm btn-secondary text-white fw-bold w-100 mt-1">处理申诉</a>
                </div>
             </div>
           </div>
@@ -154,36 +155,64 @@
         });
         
         // 如果有pending_count且大于0，按逻辑显示Toast
-        {% if current_user.is_authenticated and current_user.role == 'admin' and pending_count > 0 %}
+        {% if current_user.is_authenticated and current_user.role == 'admin' %}
         document.addEventListener('DOMContentLoaded', function() {
             var toastEl = document.getElementById('adminToast');
             if (toastEl) {
-                var currentCount = {{ pending_count }};
-                var dismissedKey = 'admin_toast_dismissed_count';
-                var lastDismissed = parseInt(localStorage.getItem(dismissedKey) || 0);
+                var currentCount = {{ pending_count|default(0) }};
+                if (currentCount > 0) {
+                    var dismissedKey = 'admin_toast_dismissed_count';
+                    var lastDismissed = parseInt(localStorage.getItem(dismissedKey) || 0);
 
-                // 逻辑：
-                // 1. 如果当前数量 > 上次关闭时的数量 ==> 有新增，显示
-                // 2. 如果当前数量 < 上次关闭时的数量 ==> 处理了部分，重置基准，但不用显示（因为是减少）
-                // 3. 如果相等 ==> 关闭过，不再显示
-                
-                if (currentCount < lastDismissed) {
-                    // 状态重置：如果数量减少了（如审核通过了），更新基准，避免下次新增时无法触发 (e.g. 5->3, set 3. new item->4. 4>3 show)
-                    localStorage.setItem(dismissedKey, currentCount);
-                } else if (currentCount > lastDismissed) {
-                    // 有新增，显示
-                    var toast = new bootstrap.Toast(toastEl);
-                    toast.show();
+                    // 逻辑：
+                    // 1. 如果当前数量 > 上次关闭时的数量 ==> 有新增，显示
+                    // 2. 如果当前数量 < 上次关闭时的数量 ==> 处理了部分，重置基准，但不用显示（因为是减少）
+                    // 3. 如果相等 ==> 关闭过，不再显示
+                    
+                    if (currentCount < lastDismissed) {
+                        // 状态重置：如果数量减少了（如审核通过了），更新基准，避免下次新增时无法触发 (e.g. 5->3, set 3. new item->4. 4>3 show)
+                        localStorage.setItem(dismissedKey, currentCount);
+                    } else if (currentCount > lastDismissed) {
+                        // 有新增，显示
+                        var toast = new bootstrap.Toast(toastEl);
+                        toast.show();
+                    }
+
+                    // 监听手动关闭事件
+                    toastEl.addEventListener('hidden.bs.toast', function () {
+                        // 关闭时，记录当前已知数量
+                        localStorage.setItem(dismissedKey, currentCount);
+                    });
                 }
-
-                // 监听手动关闭事件
-                toastEl.addEventListener('hidden.bs.toast', function () {
-                    // 关闭时，记录当前已知数量
-                    localStorage.setItem(dismissedKey, currentCount);
-                });
             }
         });
         {% endif %}
+        
+        // 监听新待办事项（审核/申诉）
+        socket.on('new_pending_item', function(data) {
+            {% if current_user.is_authenticated and current_user.role == 'admin' %}
+            var toastEl = document.getElementById('adminToast');
+            if (toastEl) {
+                var targetUrl = "{{ url_for('admin_audit') }}";
+                var btnClass = "btn-light text-dark";
+                var btnText = "立即审核";
+
+                if (data.type === 'appeal') {
+                    targetUrl = "{{ url_for('admin_appeals') }}";
+                     btnClass = "btn-warning text-dark";
+                     btnText = "处理申诉";
+                }
+
+                // Update content to show the real-time message
+                document.getElementById('adminToastBody').innerHTML = data.msg + 
+                   '<div class="mt-2 pt-2 border-top">' +
+                   '<a href="' + targetUrl + '" class="btn btn-sm ' + btnClass + ' fw-bold w-100">' + btnText + '</a></div>';
+                
+                var toast = new bootstrap.Toast(toastEl);
+                toast.show();
+            }
+            {% endif %}
+        });
         
         // 监听新私信通知
         socket.on('new_chat_notification', function(data) {
@@ -216,6 +245,10 @@
                 // Change styling to success (green)
                 var headerEl = toastEl.querySelector('.toast-header');
                 headerEl.className = 'toast-header bg-success text-white';
+                
+                // 更换关闭按钮样式
+                var closeBtn = headerEl.querySelector('.btn-close');
+                closeBtn.className = 'btn-close btn-close-white';
 
                 document.getElementById('notificationBody').innerText = data.msg;
                 var titleEl = toastEl.querySelector('.toast-header strong');
@@ -223,20 +256,11 @@
                 
                 var toast = new bootstrap.Toast(toastEl);
                 toast.show();
-            }
-        });
-
-        // 全局监听管理员通知
-        socket.on('new_pending_item', function(data) {
-            var toastEl = document.getElementById('adminToast');
-            if (toastEl) {
-                document.getElementById('adminToastBody').innerHTML = data.msg + 
-                '<div class="mt-2 pt-2 border-top">' + 
-                '<a href="{{ url_for("admin_dashboard") }}" class="btn btn-sm btn-light text-dark fw-bold w-100">立即处理</a>' + 
-                '</div>';
                 
-                var toast = new bootstrap.Toast(toastEl);
-                toast.show();
+                // 延迟刷新页面以更新状态
+                setTimeout(function() {
+                    location.reload();
+                }, 2000);
             }
         });
 
@@ -244,23 +268,76 @@
         socket.on('auction_rejected', function(data) {
             var toastEl = document.getElementById('notificationToast');
             if (toastEl) {
-                // Change styling to danger (red) or keep warning based on preference, but usually rejection is substantial
-                // Let's stick to user request logic context: if they wanted green for success, maybe keep blue or separate color for reject?
-                // User asked for green for success. Rejection was not explicitly told to change color, but previously I made notificationToast primary(blue).
-                // Let's set it to original warning (yellow) or danger (red) to distinguish?
-                // User said "Previously it was yellow for reject". I changed basic notificationToast to blue. 
-                // So now I should probably dynamically set color.
-                
+                // Change styling to warning (yellow)
                 var headerEl = toastEl.querySelector('.toast-header');
-                headerEl.className = 'toast-header bg-warning text-dark'; // Back to yellow for rejection
+                headerEl.className = 'toast-header bg-warning text-dark';
                 
+                // 黄色背景通常配黑色文字，关闭按钮不需要白色滤镜
+                var closeBtn = headerEl.querySelector('.btn-close');
+                closeBtn.className = 'btn-close';
+
                 document.getElementById('notificationBody').innerText = data.msg;
-                // 将标题改为“申请被拒绝”或其他相关提示
-                var headerEl = toastEl.querySelector('.toast-header strong');
-                if(headerEl) headerEl.innerText = "申请被拒绝";
+                var titleEl = toastEl.querySelector('.toast-header strong');
+                if(titleEl) titleEl.innerText = "审核拒绝";
                 
                 var toast = new bootstrap.Toast(toastEl);
                 toast.show();
+                
+                // 延迟刷新页面以更新状态
+                setTimeout(function() {
+                    location.reload();
+                }, 2000);
+            }
+        });
+
+        // 监听拍卖被强制停止通知
+        socket.on('auction_stopped', function(data) {
+            var toastEl = document.getElementById('notificationToast');
+            if (toastEl) {
+                // Change styling to warning (yellow)
+                var headerEl = toastEl.querySelector('.toast-header');
+                headerEl.className = 'toast-header bg-warning text-dark';
+                
+                var closeBtn = headerEl.querySelector('.btn-close');
+                closeBtn.className = 'btn-close';
+
+                // 使用 innerHTML 支持超链接
+                document.getElementById('notificationBody').innerHTML = data.msg;
+                var titleEl = toastEl.querySelector('.toast-header strong');
+                if(titleEl) titleEl.innerText = "拍品下架";
+                
+                var toast = new bootstrap.Toast(toastEl);
+                toast.show();
+                
+                // 延迟刷新页面以更新状态
+                setTimeout(function() {
+                    location.reload();
+                }, 2000);
+            }
+        });
+
+        // 监听拍卖被恢复通知
+        socket.on('auction_restored', function(data) {
+            var toastEl = document.getElementById('notificationToast');
+            if (toastEl) {
+                // Change styling to success (green)
+                var headerEl = toastEl.querySelector('.toast-header');
+                headerEl.className = 'toast-header bg-success text-white';
+                
+                var closeBtn = headerEl.querySelector('.btn-close');
+                closeBtn.className = 'btn-close btn-close-white';
+
+                document.getElementById('notificationBody').innerText = data.msg;
+                var titleEl = toastEl.querySelector('.toast-header strong');
+                if(titleEl) titleEl.innerText = "拍卖恢复";
+                
+                var toast = new bootstrap.Toast(toastEl);
+                toast.show();
+                
+                // 延迟刷新页面以更新状态
+                setTimeout(function() {
+                    location.reload();
+                }, 2000);
             }
         });
 

@@ -4,9 +4,11 @@ from flask_login import current_user
 from datetime import datetime, timedelta
 from extensions import db, socketio
 from models import Item, Bid
+from decimal import Decimal
 
 def register_events(socketio):
     @socketio.on('connect')
+
     def handle_connect():
         if current_user.is_authenticated:
             join_room(f"user_{current_user.id}")
@@ -29,7 +31,12 @@ def register_events(socketio):
             return
             
         item_id = data['item_id']
-        amount = float(data['amount'])
+        # 使用 Decimal 处理金额
+        try:
+            amount = Decimal(str(data['amount']))
+        except:
+            emit('error', {'msg': '无效的金额格式'}, room=request.sid)
+            return
         
         item = Item.query.get(item_id)
         
@@ -52,16 +59,13 @@ def register_events(socketio):
             emit('error', {'msg': '拍卖已结束'}, room=f"item_{item_id}")
             return
 
-        # Decimal 转 float 比较
-        current_price_float = float(item.current_price)
-        increment_float = float(item.increment)
-        start_price_float = float(item.start_price)
+        # 直接使用 Decimal 比较，无需转换 float
+        # item.current_price, item.increment, item.start_price 应该是 Decimal 类型
 
-        min_bid = current_price_float + (increment_float if item.highest_bidder else 0)
         if item.highest_bidder is None:
-            min_bid = start_price_float
+            min_bid = item.start_price
         else:
-            min_bid = current_price_float + increment_float
+            min_bid = item.current_price + item.increment
 
         if amount < min_bid:
             emit('error', {'msg': f'出价必须高于 {min_bid}'}, room=request.sid)
@@ -91,7 +95,7 @@ def register_events(socketio):
         db.session.commit()
         
         response = {
-            'new_price': amount,
+            'new_price': float(amount), # JSON响应转回float方便前端与JSON兼容
             'bidder_name': current_user.username,
             'new_end_time': item.end_time.isoformat(), 
             'extended': extended

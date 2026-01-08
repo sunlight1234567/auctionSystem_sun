@@ -1,6 +1,7 @@
 from extensions import db
 from flask_login import UserMixin
 from datetime import datetime
+from decimal import Decimal
 
 class User(UserMixin, db.Model):
     __tablename__ = 'users'
@@ -22,11 +23,13 @@ class Item(db.Model):
     description = db.Column(db.Text, nullable=True)
     start_price = db.Column(db.Numeric(10, 2), nullable=False)
     current_price = db.Column(db.Numeric(10, 2), nullable=False)
-    increment = db.Column(db.Numeric(10, 2), default=10.0)
+    increment = db.Column(db.Numeric(10, 2), default=Decimal('10.00'))
     start_time = db.Column(db.DateTime, default=datetime.now)
     end_time = db.Column(db.DateTime, nullable=False)
     status = db.Column(db.String(20), default='pending') 
     rejection_reason = db.Column(db.String(255), nullable=True) # 拒绝理由
+    appeal_reason = db.Column(db.Text, nullable=True) # 申诉理由
+    appeal_status = db.Column(db.String(20), nullable=True) # pending, resolved, rejected
     highest_bidder_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     order_hash = db.Column(db.String(64), nullable=True) # 订单哈希 (SHA256 hex digest is 64 chars)
     
@@ -87,3 +90,29 @@ class ChatSession(db.Model):
     item = db.relationship('Item')
     buyer = db.relationship('User', foreign_keys=[buyer_id])
     seller = db.relationship('User', foreign_keys=[seller_id])
+
+class Message(db.Model):
+    __tablename__ = 'messages'
+    id = db.Column(db.Integer, primary_key=True)
+    chat_session_id = db.Column(db.Integer, db.ForeignKey('chat_sessions.id'), nullable=False)
+    sender_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    timestamp = db.Column(db.DateTime, default=datetime.now)
+
+    session = db.relationship('ChatSession', backref=db.backref('messages', lazy=True))
+    sender = db.relationship('User')
+
+class Appeal(db.Model):
+    __tablename__ = 'appeals'
+    id = db.Column(db.Integer, primary_key=True)
+    item_id = db.Column(db.Integer, db.ForeignKey('items.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False) # 申诉人(卖家)
+    content = db.Column(db.Text, nullable=False) # 申诉理由
+    status = db.Column(db.String(20), default='pending') # pending, approved, rejected
+    rejection_reason_snapshot = db.Column(db.String(255), nullable=True) # 申诉时的下架理由作为快照
+    admin_reply = db.Column(db.Text, nullable=True) # 管理员回复/驳回理由
+    created_at = db.Column(db.DateTime, default=datetime.now)
+    handled_at = db.Column(db.DateTime, nullable=True) # 处理时间
+
+    item = db.relationship('Item', backref=db.backref('appeals', lazy=True, order_by="desc(Appeal.created_at)"))
+    user = db.relationship('User', backref=db.backref('my_appeals', lazy=True))

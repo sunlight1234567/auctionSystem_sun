@@ -1,9 +1,10 @@
 from flask import render_template, request, abort, url_for
 from flask_login import login_required, current_user
 from flask_socketio import emit, join_room, leave_room
-from models import User, Item, ChatSession
+from models import User, Item, ChatSession, Message
 from extensions import db
 from sqlalchemy import or_
+from datetime import datetime
 
 def register_chat_routes(app):
     @app.route('/inbox')
@@ -34,10 +35,25 @@ def register_chat_routes(app):
             
         # 查找或创建会话
         session = ChatSession.query.filter_by(item_id=item_id, buyer_id=buyer_id, seller_id=seller_id).first()
+        history_messages = []
+        
         if not session:
             session = ChatSession(item_id=item_id, buyer_id=buyer_id, seller_id=seller_id)
             db.session.add(session)
-        
+            db.session.commit() # 需要 commit 获取 id 以便关联 message
+        else:
+            # 加载历史消息
+            msgs = Message.query.filter_by(chat_session_id=session.id).order_by(Message.timestamp).all()
+            for m in msgs:
+                sender = User.query.get(m.sender_id)
+                history_messages.append({
+                    'sender': sender.username,
+                    'sender_id': m.sender_id,
+                    'msg': m.content,
+                    'timestamp': m.timestamp.isoformat(),
+                    'avatar': sender.avatar
+                })
+
         # 清除未读计数
         if current_user.id == buyer_id:
             session.buyer_unread = 0
@@ -46,7 +62,7 @@ def register_chat_routes(app):
         
         db.session.commit()
         
-        return render_template('chat.html', item=item, other_user=other_user, current_user=current_user)
+        return render_template('chat.html', item=item, other_user=other_user, current_user=current_user, history_messages=history_messages)
 
 def register_chat_events(socketio):
     @socketio.on('join_chat')
@@ -94,6 +110,16 @@ def register_chat_events(socketio):
                                 session.seller_unread += 1
                             else:
                                 session.buyer_unread += 1
+                            
+                            # 保存消息记录
+                            new_msg = Message(
+                                chat_session_id=session.id, 
+                                sender_id=current_user.id, 
+                                content=msg,
+                                timestamp=datetime.now()
+                            )
+                            db.session.add(new_msg)
+                            
                             db.session.commit()
                             
                             # 发送通知给接收者

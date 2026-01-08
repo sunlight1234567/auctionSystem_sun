@@ -34,7 +34,8 @@ def get_admin_dashboard_items(Item):
     """
     pending_items = Item.query.filter_by(status='pending').all()
     active_items = Item.query.filter(Item.status.in_(['active', 'approved'])).order_by(Item.start_time).all()
-    ended_items = Item.query.filter_by(status='ended').order_by(Item.end_time.desc()).all()
+    # 历史记录包含已结束和被强制终止的拍品
+    ended_items = Item.query.filter(Item.status.in_(['ended', 'stopped'])).order_by(Item.end_time.desc()).all()
     
     return pending_items, active_items, ended_items
 
@@ -90,8 +91,11 @@ def get_user_public_items(Item, user_id):
         Item.status.in_(['active', 'approved', 'ended'])
     ).order_by(Item.created_at.desc()).all()
 
-def get_search_users(User, search_query):
-    """搜索卖家"""
-    if not search_query:
-        return []
-    return User.query.filter(User.username.like(f'%{search_query}%'), User.role == 'seller').all()
+def get_appeal_list(Appeal):
+    """
+    获取申诉列表 (替代原 get_appeal_items)
+    """
+    all_appeals = Appeal.query.order_by(Appeal.created_at.desc()).all()
+    pending_appeals = [a for a in all_appeals if a.status == 'pending']
+    history_appeals = [a for a in all_appeals if a.status != 'pending']
+    return pending_appeals, history_appeals

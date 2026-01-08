@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <h1>后台管理</h1>
+    </div>
+</div>
+
+{% include "admin/nav_tabs.html" %}
+
+<div class="tab-content mt-3">
+  <div class="table-responsive">
+        <table class="table table-striped table-hover">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>名称</th>
+                    <th>卖家</th>
+                    <th>描述</th>
+                    <th>起拍价</th>
+                    <th>状态</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in items %}
+                <tr>
+                    <td>{{ item.id }}</td>
+                    <td>
+                        <a href="{{ url_for('item_detail', item_id=item.id) }}" target="_blank">{{ item.name }}</a>
+                        {% if item.images and item.images|length > 0 %}
+                            <i class="bi bi-image" title="有图片"></i>
+                        {% endif %}
+                    </td>
+                    <td>{{ item.seller.username }}</td>
+                    <td>{{ item.description[:20] }}...</td>
+                    <td>¥{{ item.start_price }}</td>
+                    <td><span class="badge bg-warning text-dark">{{ item.status }}</span></td>
+                    <td>
+                        <form action="{{ url_for('approve_item_action', item_id=item.id) }}" method="POST" class="d-inline">
+                            <button type="submit" class="btn btn-success btn-sm">通过</button>
+                        </form>
+                        <button type="button" class="btn btn-danger btn-sm ms-1" onclick="openRejectModal({{ item.id }})">拒绝</button>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="7" class="text-center">暂无待审核拍品</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Rejection Modal -->
+<div class="modal fade" id="rejectModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">拒绝申请</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form id="rejectForm" method="POST">
+          <div class="modal-body">
+            <div class="mb-3">
+                <label for="reject-reason" class="form-label">拒绝理由</label>
+                <textarea class="form-control" id="reject-reason" name="reason" rows="3" placeholder="可选: 填写拒绝理由"></textarea>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+            <button type="submit" class="btn btn-danger">确认拒绝</button>
+          </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+function openRejectModal(itemId) {
+    var form = document.getElementById('rejectForm');
+    form.action = "/reject/" + itemId;
+    var modal = new bootstrap.Modal(document.getElementById('rejectModal'));
+    modal.show();
+}
+</script>
+{% endblock %}

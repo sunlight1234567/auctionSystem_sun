@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <h1>后台管理</h1>
+    </div>
+</div>
+
+{% include "admin/nav_tabs.html" %}
+
+<div class="tab-content mt-3">
+    <div class="table-responsive">
+        <table class="table table-striped table-hover">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>名称</th>
+                    <th>卖家</th>
+                    <th>下架原因 (快照)</th>
+                    <th>申诉理由</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for appeal in appeal_items %}
+                <tr>
+                    <td>{{ appeal.item.id }}</td>
+                    <td><a href="{{ url_for('item_detail', item_id=appeal.item.id) }}" target="_blank">{{ appeal.item.name }}</a></td>
+                    <td>{{ appeal.item.seller.username }}</td>
+                    <td class="text-danger">{{ appeal.rejection_reason_snapshot }}</td>
+                    <td>{{ appeal.content }}</td>
+                    <td>
+                        <form action="{{ url_for('restore_auction', item_id=appeal.item.id) }}" method="POST" class="d-inline" onsubmit="return confirm('接受申诉将恢复此拍品上架，确定吗？');">
+                            <button type="submit" class="btn btn-success btn-sm">通过(恢复)</button>
+                        </form>
+                        <button type="button" class="btn btn-danger btn-sm ms-1" onclick="openRejectAppealModal({{ appeal.id }})">驳回</button>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6" class="text-center">暂无申诉请求</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- 申诉历史 (Moved to separate page but can keep summary here if needed, but user asked for split. Let's keep this ONLY for pending requests as per '申诉请求' label, and History is in History tab? 
+    Wait, user said: "待审核、运行中/已通过、申诉请求 和 历史记录". "申诉请求" usually means Pending Appeals. "历史记录" might mean Item History OR Appeal History. 
+    In my nav_tabs I have "History Records" (历史记录). 
+    Let's check the old dashboard. It had "Appeal History" under Appeals tab and "Item History" under History tab.
+    So "Appeal Requests" page should probably just have pending appeals.
+    If the user meant "Appeal History" to be under "History Records" tab, then that tab becomes mixed.
+    However, usually "History" in admin means closed auctions.
+    Let's put Appeal History under "Appeal Requests" page at the bottom OR put it in "History Records".
+    Given the prompt "申诉请求和历史记录" (Appeal Requests AND History Records) are distinct items in the list of 4.
+    I will leave Appeal History here if it's convenient, OR maybe the user wants a 5th tab?
+    User said "split into 4 subdirectories". 
+    1. Pending Audit
+    2. Active
+    3. Appeal Requests
+    4. History
+    It's safer to keep Appeal History with Appeal Requests, or move it to History tab.
+    Let's look at the old code: Appeal History was under Appeals tab.
+    I'll include Appeal History here for now, as it relates to Appeals. 
+    But wait, user said "待审核(1)、运行中/已通过(2)、申诉请求(3)和历史记录(4)".
+    This implies 4 pages.
+    If I put Appeal History in page 3, it's fine.
+    If I put it in page 4, page 4 becomes mixed with Ended Items.
+    Let's stick to Appeal History being below pending appeals in this page, as it's contextually relevant.
+    -->
+    
+    <h5 class="mt-4 border-bottom pb-2">申诉历史处理记录</h5>
+    <div class="table-responsive mt-3">
+        <table class="table table-striped table-hover table-sm">
+            <thead class="table-light">
+                <tr>
+                    <th>ID</th>
+                    <th>名称</th>
+                    <th>卖家</th>
+                    <th>下架原因 (快照)</th>
+                    <th>申诉理由</th>
+                    <th>最终结果</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for appeal in appeal_history %}
+                <tr>
+                    <td>{{ appeal.item.id }}</td>
+                    <td><a href="{{ url_for('item_detail', item_id=appeal.item.id) }}" target="_blank">{{ appeal.item.name }}</a></td>
+                    <td>{{ appeal.item.seller.username }}</td>
+                    <td class="text-danger small">{{ appeal.rejection_reason_snapshot or '-' }}</td>
+                    <td class="small">{{ appeal.content }}</td>
+                    <td>
+                        {% if appeal.status == 'resolved' or appeal.status == 'approved' %}
+                            <span class="badge bg-success">已通过</span>
+                        {% elif appeal.status == 'rejected' %}
+                            <span class="badge bg-danger">已驳回</span>
+                        {% else %}
+                            <span class="badge bg-secondary">{{ appeal.status }}</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6" class="text-center text-muted">暂无历史记录</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Modal: 驳回申诉 -->
+<div class="modal fade" id="rejectAppealModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">驳回申诉</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form id="rejectAppealForm" method="POST">
+          <div class="modal-body">
+            <div class="mb-3">
+                <label for="reject-appeal-reason" class="form-label">驳回理由 <span class="text-danger">*</span></label>
+                <textarea class="form-control" id="reject-appeal-reason" name="reason" rows="3" required placeholder="请说明驳回申诉的理由..."></textarea>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+            <button type="submit" class="btn btn-danger">确认驳回</button>
+          </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+function openRejectAppealModal(appealId) {
+    var form = document.getElementById('rejectAppealForm');
+    form.action = "/admin/reject_appeal_action/" + appealId;
+    var modal = new bootstrap.Modal(document.getElementById('rejectAppealModal'));
+    modal.show();
+}
+</script>
+{% endblock %}

@@ -1,0 +1,24 @@
+<ul class="nav nav-tabs mt-3">
+  <li class="nav-item">
+    <a class="nav-link {{ 'active' if active_tab == 'audit' else '' }}" href="{{ url_for('admin_audit') }}">
+        待审核
+        {% if audit_count and audit_count > 0 %}
+        <span class="badge bg-danger rounded-pill ms-1">{{ audit_count }}</span>
+        {% endif %}
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {{ 'active' if active_tab == 'active_items' else '' }}" href="{{ url_for('admin_active_items') }}">运行中/已通过</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {{ 'active' if active_tab == 'appeals' else '' }}" href="{{ url_for('admin_appeals') }}">
+        申诉请求
+        {% if appeal_pending_count and appeal_pending_count > 0 %}
+        <span class="badge bg-danger rounded-pill ms-1">{{ appeal_pending_count }}</span>
+        {% endif %}
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {{ 'active' if active_tab == 'history' else '' }}" href="{{ url_for('admin_history') }}">历史记录</a>
+  </li>
+</ul>

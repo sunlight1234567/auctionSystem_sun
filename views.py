@@ -2,6 +2,7 @@ from flask import render_template, request, redirect, url_for, flash, current_ap
 from flask_login import login_user, login_required, logout_user, current_user
 from datetime import datetime, timedelta
 from werkzeug.utils import secure_filename
+from decimal import Decimal, ROUND_HALF_UP
 import os
 import time
 from sqlalchemy import text
@@ -24,8 +25,10 @@ def register_views(app):
             # 管理员审核计数
             if current_user.role == 'admin':
                 try:
-                    count = Item.query.filter_by(status='pending').count()
-                    context['pending_count'] = count
+                    from models import Appeal
+                    item_count = Item.query.filter_by(status='pending').count()
+                    appeal_count = Appeal.query.filter_by(status='pending').count()
+                    context['pending_count'] = item_count + appeal_count
                 except:
                     context['pending_count'] = 0
             
@@ -129,8 +132,9 @@ def register_views(app):
                 return redirect(request.url)
 
             try:
-                start_price = float(start_price_val)
-                increment = float(increment_val)
+                # 强制保留两位小数，通过 ROUND_HALF_UP 四舍五入，防止浮点数精度问题
+                start_price = Decimal(start_price_val).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                increment = Decimal(increment_val).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
                 duration = int(duration_val)
             except ValueError:
                 flash('价格或时长格式无效')
@@ -193,7 +197,8 @@ def register_views(app):
             
             # 通知管理员有新审核
             socketio.emit('new_pending_item', {
-                'msg': f'新拍品待审核: {new_item.name} (卖家: {current_user.username})'
+                'msg': f'新拍品待审核: {new_item.name} (卖家: {current_user.username})',
+                'type': 'audit'
             }, room='admin_room')
             
             flash('拍品已提交，等待管理员审核')
@@ -230,18 +235,95 @@ def register_views(app):
     @app.route('/admin')
     @login_required
     def admin_dashboard():
+        return redirect(url_for('admin_audit'))
+
+    @app.route('/admin/audit')
+    @login_required
+    def admin_audit():
         if current_user.role != 'admin':
             flash('权限不足')
             return redirect(url_for('index'))
         
-        # 移至 query.py
-        pending_items, active_items, ended_items = query.get_admin_dashboard_items(Item)
+        # 仅获取待审核
+        from models import Item, Appeal
+        pending_items = Item.query.filter_by(status='pending').order_by(Item.created_at.desc()).all()
+        
+        # 为了计算 Badge，也需要其他数量 (或者只计算 audit_count)
+        # Context Processor 已经有了 global pending_count (sum)
+        # 这里特别传 audit_count 和 appeal_pending_count 给 nav_tabs
+        audit_count = len(pending_items)
+        appeal_pending_count = Appeal.query.filter_by(status='pending').count()
 
-        return render_template('admin_dashboard.html', items=pending_items, active_items=active_items, ended_items=ended_items)
+        return render_template('admin/audit.html', 
+                               items=pending_items,
+                               active_tab='audit',
+                               audit_count=audit_count,
+                               appeal_pending_count=appeal_pending_count)
 
-    @app.route('/approve/<int:item_id>')
+    @app.route('/admin/active')
     @login_required
-    def approve_item(item_id):
+    def admin_active_items():
+        if current_user.role != 'admin':
+            return redirect(url_for('index'))
+        
+        # Active and Approved (Upcoming)
+        from models import Item, Appeal
+        active_items = Item.query.filter(Item.status.in_(['active', 'approved'])).order_by(Item.start_time).all()
+        
+        # Counts for tabs
+        audit_count = Item.query.filter_by(status='pending').count()
+        appeal_pending_count = Appeal.query.filter_by(status='pending').count()
+
+        return render_template('admin/active_items.html', 
+                               active_items=active_items,
+                               active_tab='active_items',
+                               audit_count=audit_count,
+                               appeal_pending_count=appeal_pending_count)
+
+    @app.route('/admin/appeals')
+    @login_required
+    def admin_appeals():
+        if current_user.role != 'admin':
+            return redirect(url_for('index'))
+            
+        from models import Appeal, Item
+        pending_appeals, history_appeals = query.get_appeal_list(Appeal)
+        
+        # Counts for tabs
+        audit_count = Item.query.filter_by(status='pending').count()
+        appeal_pending_count = len(pending_appeals)
+
+        return render_template('admin/appeals.html', 
+                               appeal_items=pending_appeals,
+                               appeal_history=history_appeals,
+                               active_tab='appeals',
+                               audit_count=audit_count,
+                               appeal_pending_count=appeal_pending_count)
+
+    @app.route('/admin/history')
+    @login_required
+    def admin_history():
+        if current_user.role != 'admin':
+            return redirect(url_for('index'))
+            
+        from models import Item, Appeal
+        # Ended items (stopped, rejected, ended)
+        ended_items = Item.query.filter(Item.status.in_(['ended', 'stopped', 'rejected'])).order_by(Item.end_time.desc()).limit(50).all()
+        
+        # Counts for tabs
+        audit_count = Item.query.filter_by(status='pending').count()
+        appeal_pending_count = Appeal.query.filter_by(status='pending').count()
+
+        return render_template('admin/history.html', 
+                               ended_items=ended_items,
+                               now=datetime.now(),
+                               active_tab='history',
+                               audit_count=audit_count,
+                               appeal_pending_count=appeal_pending_count)
+
+    @app.route('/approve_action/<int:item_id>', methods=['POST'])
+    @login_required
+    def approve_item_action(item_id):
         if current_user.role != 'admin':
             return redirect(url_for('index'))
         item = Item.query.get_or_404(item_id)
@@ -271,10 +353,10 @@ def register_views(app):
             'msg': msg_content
         }, room=f"user_{item.seller_id}")
         
-        # 发送系统私信
-        send_system_message(item.id, item.seller_id, msg_content)
+        # 发送系统私信 (跳过默认通知，因为已经发送了 auction_approved)
+        send_system_message(item.id, item.seller_id, msg_content, skip_notification=True)
         
-        return redirect(url_for('admin_dashboard'))
+        return redirect(url_for('admin_audit'))
 
     @app.route('/reject/<int:item_id>', methods=['POST'])
     @login_required
@@ -297,37 +379,202 @@ def register_views(app):
             'msg': msg_content
         }, room=f"user_{item.seller_id}")
         
-        # 发送系统私信
-        send_system_message(item.id, item.seller_id, msg_content)
+        # 发送系统私信 (跳过默认通知，因为已经发送了 auction_rejected)
+        send_system_message(item.id, item.seller_id, msg_content, skip_notification=True)
         
         flash('已拒绝并在卖家端发送通知')
-        return redirect(url_for('admin_dashboard'))
+        return redirect(url_for('admin_audit'))
 
-    @app.route('/admin/stop/<int:item_id>')
+    @app.route('/admin/stop/<int:item_id>', methods=['GET', 'POST'])
     @login_required
     def stop_auction(item_id):
         """管理员强制停止拍卖"""
         if current_user.role != 'admin':
             return redirect(url_for('index'))
+        
+        # 如果是旧的 GET 请求链接，重定向回管理页面并提示
+        if request.method == 'GET':
+            flash('请刷新页面后，使用“强制下架”按钮填写原因')
+            # 兼容性重定向，假设来自活跃列表
+            return redirect(url_for('admin_active_items'))
+            
         item = Item.query.get_or_404(item_id)
+        reason = request.form.get('reason')
+
+        if not reason:
+            flash('下架必须填写原因')
+            return redirect(url_for('admin_active_items'))
         
         # 允许停止 active 或 approved 状态的商品
         if item.status in ['active', 'approved']:
-            item.status = 'rejected' # 或者 'stopped'
+            item.status = 'stopped' # 强制下架状态
+            item.rejection_reason = reason # 下架原因
             db.session.commit()
             
             # 如果正在进行，通知房间内用户
-            socketio.emit('error', {'msg': '管理员已强制终止此拍卖'}, room=f"item_{item.id}")
+            socketio.emit('error', {'msg': f'管理员已强制终止此拍卖，原因：{reason}'}, room=f"item_{item.id}")
             socketio.emit('auction_ended', {'item_id': item.id, 'winner': '管理员终止'}, room=f"item_{item.id}")
             
-            # 发送系统私信给卖家
-            send_system_message(item.id, item.seller_id, f'您的拍品 "{item.name}" 已被管理员强制终止。')
+            # 生成申诉链接 (指向新的申诉表单页面)
+            appeal_url = url_for('submit_appeal', item_id=item.id, _external=True)
+            
+            # 通知卖家 (Yellow Toast)
+            # 使用 HTML <a> 标签包裹链接，配合前端 innerHTML 显示
+            msg_content = f'您的拍品 "{item.name}" 已被管理员强制下架。原因：{reason}。如果您对此操作有任何异议，可以<a href="{appeal_url}" class="text-white fw-bold" style="text-decoration: underline;">点击此处</a>进行申诉'
+            
+            socketio.emit('auction_stopped', {
+                'item_name': item.name,
+                'reason': reason,
+                'msg': msg_content
+            }, room=f"user_{item.seller_id}")
+
+            # 发送系统私信给卖家 (跳过通用通知) - 私信中存储完整链接供点击
+            chat_msg_content = f'您的拍品 "{item.name}" 已被管理员强制下架。原因：{reason}。如果您对此操作有任何异议，可以点击链接进行申诉: {appeal_url}'
+            send_system_message(item.id, item.seller_id, chat_msg_content, skip_notification=True)
             
             flash(f'已强制停止拍品: {item.name}')
         else:
             flash('该拍品当前状态无法停止')
             
+        return redirect(url_for('admin_active_items'))
+
+    @app.route('/admin/restore/<int:item_id>', methods=['POST'])
+    @login_required
+    def restore_auction(item_id):
+        """管理员恢复被误操作强制停止的拍卖"""
+        if current_user.role != 'admin':
+            return redirect(url_for('index'))
+            
+        item = Item.query.get_or_404(item_id)
+        
+        if item.status == 'stopped':
+            if item.end_time > datetime.now():
+                item.status = 'active'
+                item.rejection_reason = None 
+                
+                # Update pending appeals to 'approved' (resolved)
+                from models import Appeal
+                pending_appeals = Appeal.query.filter_by(item_id=item.id, status='pending').all()
+                for appeal in pending_appeals:
+                    appeal.status = 'approved'
+                    appeal.handled_at = datetime.now()
+                    appeal.admin_reply = '管理员主动恢复'
+
+                db.session.commit()
+                
+                # Notify seller via SocketIO (Green Toast)
+                msg_content = f'您的拍品 "{item.name}" 已被管理员恢复上架！'
+                socketio.emit('auction_restored', {
+                    'item_name': item.name,
+                    'msg': msg_content
+                }, room=f"user_{item.seller_id}")
+
+                # 发送系统私信 (跳过默认通知)
+                send_system_message(item.id, item.seller_id, msg_content, skip_notification=True)
+
+                flash(f'已恢复拍品: {item.name}')
+            else:
+                flash('该拍品原定结束时间已过，无法恢复')
+        else:
+            flash('只有被强制下架的拍品才能恢复')
+            
+        return redirect(url_for('admin_appeals'))
+
+    @app.route('/item/<int:item_id>/appeal', methods=['GET', 'POST'])
+    @login_required
+    def submit_appeal(item_id):
+        item = Item.query.get_or_404(item_id)
+        
+        if item.seller_id != current_user.id:
+            flash('无权操作')
+            return redirect(url_for('inbox'))
+            
+        if item.status != 'stopped':
+            flash('该拍品未处于强制下架状态，无需申诉')
+            return redirect(url_for('inbox'))
+        
+        # 处理 GET 请求：显示申诉表单
+        if request.method == 'GET':
+            return render_template('appeal.html', item=item)
+            
+        # 处理 POST 请求：提交申诉
+        reason = request.form.get('reason')
+        if not reason:
+            flash('请填写申诉理由')
+            return render_template('appeal.html', item=item)
+            
+        # Create new Appeal record
+        from models import Appeal
+        new_appeal = Appeal(
+            item_id=item.id,
+            user_id=current_user.id,
+            content=reason,
+            status='pending',
+            rejection_reason_snapshot=item.rejection_reason
+        )
+        db.session.add(new_appeal)
+        db.session.commit()
+        
+        flash('申诉提交成功，请等待管理员处理')
+        
+        # Notify Admin
+        socketio.emit('new_pending_item', {
+                'msg': f'收到新申诉: {item.name} (卖家: {current_user.username})',
+                'type': 'appeal'
+            }, room='admin_room')
+        
+        # 跳转回消息列表 or Chat
+        return redirect(url_for('inbox'))
+
+    @app.route('/admin/reject_appeal/<int:item_id>', methods=['POST'])
+    @login_required
+    def reject_appeal(item_id):
+        if current_user.role != 'admin':
+            return redirect(url_for('index'))
+            
+        # item_id is passed, but we should probably reject by appeal_id now?
+        # But UI sends item_id currently. Let's find pending appeals for this item.
+        # Ideally UI should send appeal_id.
+        # Let's support item_id for now to handle "reject all pending appeals for this item" or 
+        # modify template to pass appeal_id. modifying template is better.
+        
+        # But wait, the prompt is to fix bug and support history. 
+        # I will update template to iterate appeals, so I should update route to take appeal_id.
         return redirect(url_for('admin_dashboard'))
+
+    @app.route('/admin/reject_appeal_action/<int:appeal_id>', methods=['POST'])
+    @login_required
+    def reject_appeal_action(appeal_id):
+        if current_user.role != 'admin':
+            return redirect(url_for('index'))
+            
+        from models import Appeal
+        appeal = Appeal.query.get_or_404(appeal_id)
+        
+        reason = request.form.get('reason')
+        if not reason:
+            reason = '申诉被驳回'
+
+        if appeal.status == 'pending':
+            appeal.status = 'rejected'
+            appeal.handled_at = datetime.now()
+            appeal.admin_reply = reason
+            
+            db.session.commit()
+            
+            # Notify seller
+            item = appeal.item
+            msg = f'关于拍品 "{item.name}" 的申诉已被驳回。理由: {reason}。维持下架决定。'
+            send_system_message(item.id, item.seller_id, msg)
+            socketio.emit('auction_rejected', { 
+                'item_name': item.name,
+                'reason': reason,
+                'msg': msg
+            }, room=f"user_{item.seller_id}")
+            
+            flash('已驳回申诉')
+        
+        return redirect(url_for('admin_appeals'))
 
     @app.route('/user/<int:user_id>')
     @login_required

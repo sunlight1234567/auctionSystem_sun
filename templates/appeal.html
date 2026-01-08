@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-6">
+            <div class="card shadow">
+                <div class="card-header bg-warning text-dark">
+                    <h4 class="mb-0"><i class="bi bi-exclamation-triangle-fill"></i> 拍品申诉</h4>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-secondary">
+                        <strong>拍品名称：</strong> {{ item.name }}<br>
+                        <strong>下架原因：</strong> {{ item.rejection_reason }}
+                    </div>
+                    
+                    <form method="POST">
+                        <div class="mb-3">
+                            <label for="reason" class="form-label">申诉理由</label>
+                            <textarea class="form-control" id="reason" name="reason" rows="6" required placeholder="请详细描述您的申诉理由，可以包含对管理员下架原因的反驳或补充说明..."></textarea>
+                            <div class="form-text">请认真填写，管理员将根据您的申诉内容决定是否恢复上架。</div>
+                        </div>
+                        
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <a href="{{ url_for('inbox') }}" class="btn btn-light me-md-2">取消</a>
+                            <button type="submit" class="btn btn-primary">提交申诉</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

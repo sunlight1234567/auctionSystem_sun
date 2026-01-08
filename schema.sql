@@ -25,9 +25,13 @@ CREATE TABLE items (
     end_time DATETIME NOT NULL,
     status VARCHAR(20) DEFAULT 'pending', -- 'pending', 'active', 'rejected', 'ended', 'approved'
     rejection_reason VARCHAR(255),
+    appeal_reason TEXT,
+    appeal_status VARCHAR(20), -- 'pending', 'resolved', 'rejected'
     highest_bidder_id INT,
     order_hash VARCHAR(64),
     payment_status VARCHAR(20) DEFAULT 'unpaid',
+    tracking_number VARCHAR(100),
+    shipping_status VARCHAR(20) DEFAULT 'unshipped', -- 'unshipped', 'shipped', 'received'
     shipping_name VARCHAR(80),
     shipping_phone VARCHAR(20),
     shipping_address VARCHAR(255),
@@ -81,4 +85,30 @@ CREATE TABLE chat_sessions (
     FOREIGN KEY (item_id) REFERENCES items(id),
     FOREIGN KEY (buyer_id) REFERENCES users(id),
     FOREIGN KEY (seller_id) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE messages (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    chat_session_id INT NOT NULL,
+    sender_id INT NOT NULL,
+    content TEXT NOT NULL,
+    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+    
+    FOREIGN KEY (chat_session_id) REFERENCES chat_sessions(id) ON DELETE CASCADE,
+    FOREIGN KEY (sender_id) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE appeals (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    item_id INT NOT NULL,
+    user_id INT NOT NULL,
+    content TEXT NOT NULL,
+    status VARCHAR(20) DEFAULT 'pending', -- 'pending', 'approved', 'rejected'
+    rejection_reason_snapshot VARCHAR(255),
+    admin_reply TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    handled_at DATETIME,
+
+    FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
