@@ -32,6 +32,8 @@ class Item(db.Model):
     
     # 支付与物流
     payment_status = db.Column(db.String(20), default='unpaid') # unpaid, paid
+    tracking_number = db.Column(db.String(100), nullable=True) # 快递单号
+    shipping_status = db.Column(db.String(20), default='unshipped') # unshipped, shipped, received
     shipping_name = db.Column(db.String(80), nullable=True)
     shipping_phone = db.Column(db.String(20), nullable=True)
     shipping_address = db.Column(db.String(255), nullable=True)

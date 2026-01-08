@@ -467,6 +467,55 @@ def register_views(app):
         
         flash('支付确认成功！')
         return redirect(url_for('item_detail', item_id=item_id))
+
+    @app.route('/item/<int:item_id>/ship', methods=['POST'])
+    @login_required
+    def ship_item(item_id):
+        item = Item.query.get_or_404(item_id)
         
-        flash('动态发布成功')
-        return redirect(url_for('user_profile', user_id=current_user.id))
+        # 验证权限：只有卖家能发货
+        if item.seller_id != current_user.id:
+            flash('您无权操作此订单')
+            return redirect(url_for('my_auctions'))
+            
+        if item.payment_status != 'paid':
+            flash('买家尚未付款，无法发货')
+            return redirect(url_for('my_auctions'))
+            
+        tracking_number = request.form.get('tracking_number')
+        if not tracking_number:
+            flash('请输入快递单号')
+            return redirect(url_for('my_auctions'))
+            
+        item.tracking_number = tracking_number
+        item.shipping_status = 'shipped'
+        db.session.commit()
+        
+        # 通知买家
+        send_system_message(item.id, item.highest_bidder_id, f"您的订单 {item.order_hash} 已发货！快递单号：{tracking_number}")
+        
+        flash('发货成功')
+        return redirect(url_for('my_auctions'))
+
+    @app.route('/item/<int:item_id>/confirm_receipt', methods=['POST'])
+    @login_required
+    def confirm_receipt(item_id):
+        item = Item.query.get_or_404(item_id)
+        
+        # 验证权限：只有买家能收货
+        if item.highest_bidder_id != current_user.id:
+            flash('您无权操作此订单')
+            return redirect(url_for('my_orders'))
+            
+        if item.shipping_status != 'shipped':
+            flash('订单状态不正确，无法确认收货')
+            return redirect(url_for('my_orders'))
+            
+        item.shipping_status = 'received'
+        db.session.commit()
+        
+        # 通知卖家
+        send_system_message(item.id, item.seller_id, f"买家已确认收货，订单 {item.order_hash} 完成。")
+        
+        flash('确认收货成功')
+        return redirect(url_for('my_orders'))

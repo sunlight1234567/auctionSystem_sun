@@ -65,6 +65,21 @@
                 </td>
                 <td>
                     <a href="{{ url_for('item_detail', item_id=item.id) }}" class="btn btn-sm btn-outline-primary">查看详情</a>
+                    
+                    {% if item.payment_status == 'paid' %}
+                        {% if item.shipping_status == 'shipped' %}
+                            <form action="{{ url_for('confirm_receipt', item_id=item.id) }}" method="POST" class="d-inline-block mt-1">
+                                <button type="submit" class="btn btn-sm btn-success" onclick="return confirm('确认已收到货物？')">确认收货</button>
+                            </form>
+                            <small class="d-block text-muted mt-1">单号: {{ item.tracking_number }}</small>
+                        {% elif item.shipping_status == 'received' %}
+                             <span class="d-block badge bg-success mt-1">已收货</span>
+                        {% elif item.shipping_status == 'unshipped' %}
+                             <span class="d-block badge bg-warning text-dark mt-1">待发货</span>
+                        {% endif %}
+                    {% elif item.status == 'ended' %}
+                         <a href="{{ url_for('item_detail', item_id=item.id) }}" class="btn btn-sm btn-danger mt-1">去支付</a>
+                    {% endif %}
                 </td>
             </tr>
             {% else %}

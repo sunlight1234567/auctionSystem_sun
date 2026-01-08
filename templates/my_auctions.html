@@ -82,6 +82,54 @@
                 </td>
                 <td>
                     <a href="{{ url_for('item_detail', item_id=item.id) }}" class="btn btn-sm btn-outline-primary">查看</a>
+                    
+                    {% if item.status == 'ended' and item.highest_bidder %}
+                        {% if item.payment_status == 'paid' %}
+                            {% if item.shipping_status == 'unshipped' %}
+                                <button type="button" class="btn btn-sm btn-primary mt-1" data-bs-toggle="modal" data-bs-target="#shipModal{{ item.id }}">
+                                    发货
+                                </button>
+                                <!-- Ship Modal -->
+                                <div class="modal fade" id="shipModal{{ item.id }}" tabindex="-1" aria-hidden="true">
+                                    <div class="modal-dialog">
+                                        <div class="modal-content">
+                                            <div class="modal-header">
+                                                <h5 class="modal-title">填写物流信息 - {{ item.name }}</h5>
+                                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                            </div>
+                                            <form action="{{ url_for('ship_item', item_id=item.id) }}" method="POST">
+                                                <div class="modal-body">
+                                                    <div class="mb-3">
+                                                        <label class="form-label">收货人信息</label>
+                                                        <div class="form-control-plaintext bg-light p-2 rounded">
+                                                            <p class="mb-1"><strong>姓名:</strong> {{ item.shipping_name }}</p>
+                                                            <p class="mb-1"><strong>电话:</strong> {{ item.shipping_phone }}</p>
+                                                            <p class="mb-0"><strong>地址:</strong> {{ item.shipping_address }}</p>
+                                                        </div>
+                                                    </div>
+                                                    <div class="mb-3">
+                                                        <label for="tracking_number" class="form-label">快递单号</label>
+                                                        <input type="text" class="form-control" name="tracking_number" required placeholder="请输入快递单号">
+                                                    </div>
+                                                </div>
+                                                <div class="modal-footer">
+                                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                                                    <button type="submit" class="btn btn-primary">确认发货</button>
+                                                </div>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% elif item.shipping_status == 'shipped' %}
+                                <span class="d-block badge bg-info text-dark mt-1">已发货</span>
+                                <small class="d-block text-muted">单号: {{ item.tracking_number }}</small>
+                            {% elif item.shipping_status == 'received' %}
+                                <span class="d-block badge bg-success mt-1">已收货</span>
+                            {% endif %}
+                        {% else %}
+                             <span class="d-block badge bg-secondary mt-1">待付款</span>
+                        {% endif %}
+                    {% endif %}
                 </td>
             </tr>
             {% else %}
