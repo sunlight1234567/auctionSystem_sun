@@ -10,6 +10,10 @@ CREATE TABLE users (
     phone VARCHAR(20),
     avatar VARCHAR(200),
     banned_until DATETIME,
+    real_name VARCHAR(80),
+    id_card VARCHAR(20),
+    is_verified BOOLEAN DEFAULT FALSE,
+    verified_at DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 

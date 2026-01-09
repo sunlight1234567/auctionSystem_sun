@@ -107,6 +107,42 @@ def register_views(app):
                 return redirect(url_for('index'))
         return render_template('register.html')
 
+    @app.route('/verify', methods=['GET', 'POST'])
+    @login_required
+    def verify_identity():
+        if current_user.role == 'admin':
+            flash('管理员无需实名认证')
+            return redirect(url_for('index'))
+
+        if request.method == 'POST':
+            real_name = request.form.get('real_name', '').strip()
+            id_card = request.form.get('id_card', '').strip()
+
+            if not real_name or not id_card:
+                flash('请填写真实姓名和身份证号')
+                return render_template('verify.html')
+
+            import re
+            if not re.match(r'^\d{17}[\dXx]$', id_card):
+                flash('身份证号格式不正确')
+                return render_template('verify.html')
+
+            existing = User.query.filter_by(id_card=id_card, role=current_user.role, is_verified=True).first()
+            if existing and existing.id != current_user.id:
+                flash('该身份证号在当前角色已完成实名认证，无法重复认证')
+                return render_template('verify.html')
+
+            user = User.query.get(current_user.id)
+            user.real_name = real_name
+            user.id_card = id_card
+            user.is_verified = True
+            user.verified_at = datetime.now()
+            db.session.commit()
+            flash('实名认证成功')
+            return redirect(url_for('index'))
+
+        return render_template('verify.html')
+
     @app.route('/logout')
     @login_required
     def logout():
@@ -119,6 +155,9 @@ def register_views(app):
         if current_user.role != 'seller':
             flash('只有卖家可以发布商品')
             return redirect(url_for('index'))
+        if not getattr(current_user, 'is_verified', False):
+            flash('您尚未完成实名认证。<a href="' + url_for('verify_identity') + '" class="btn btn-sm btn-primary ms-2">现在去实名</a> <button type="button" class="btn btn-sm btn-secondary ms-2" data-bs-dismiss="alert">明白了，稍后再去</button>')
+            return redirect(url_for('verify_identity'))
         
         if request.method == 'POST':
             name = request.form.get('name')
@@ -212,6 +251,9 @@ def register_views(app):
         if current_user.role != 'seller':
             flash('只有卖家可以查看发布历史')
             return redirect(url_for('index'))
+        if not getattr(current_user, 'is_verified', False):
+            flash('您尚未完成实名认证。<a href="' + url_for('verify_identity') + '" class="btn btn-sm btn-primary ms-2">现在去实名</a> <button type="button" class="btn btn-sm btn-secondary ms-2" data-bs-dismiss="alert">明白了，稍后再去</button>')
+            return redirect(url_for('verify_identity'))
         
         search_q = request.args.get('q', '')
         # 移至 query.py
@@ -221,6 +263,9 @@ def register_views(app):
     @app.route('/my_orders')
     @login_required
     def my_orders():
+        if not getattr(current_user, 'is_verified', False):
+            flash('您尚未完成实名认证。<a href="' + url_for('verify_identity') + '" class="btn btn-sm btn-primary ms-2">现在去实名</a> <button type="button" class="btn btn-sm btn-secondary ms-2" data-bs-dismiss="alert">明白了，稍后再去</button>')
+            return redirect(url_for('verify_identity'))
         search_q = request.args.get('q', '')
         # 移至 query.py
         orders = query.get_buyer_won_items(Item, User, current_user.id, search_q)
@@ -488,6 +533,9 @@ def register_views(app):
         if item.seller_id != current_user.id:
             flash('无权操作')
             return redirect(url_for('inbox'))
+        if not getattr(current_user, 'is_verified', False):
+            flash('您尚未完成实名认证。<a href="' + url_for('verify_identity') + '" class="btn btn-sm btn-primary ms-2">现在去实名</a> <button type="button" class="btn btn-sm btn-secondary ms-2" data-bs-dismiss="alert">明白了，稍后再去</button>')
+            return redirect(url_for('verify_identity'))
             
         if item.status != 'stopped':
             flash('该拍品未处于强制下架状态，无需申诉')
@@ -589,6 +637,15 @@ def register_views(app):
             
         return render_template('user_profile.html', user=user, posts=posts, items=public_items)
 
+    @app.route('/admin/view_identity/<int:user_id>')
+    @login_required
+    def admin_view_identity(user_id):
+        if current_user.role != 'admin':
+            flash('权限不足')
+            return redirect(url_for('index'))
+        user = User.query.get_or_404(user_id)
+        return render_template('verify.html', view_only=True, real_name=user.real_name, id_card=user.id_card, is_verified=getattr(user, 'is_verified', False))
+
     @app.route('/update_avatar', methods=['POST'])
     @login_required
     def update_avatar():
@@ -638,6 +695,9 @@ def register_views(app):
     @login_required
     def pay_item(item_id):
         item = Item.query.get_or_404(item_id)
+        if not getattr(current_user, 'is_verified', False):
+            flash('您尚未完成实名认证。<a href="' + url_for('verify_identity') + '" class="btn btn-sm btn-primary ms-2">现在去实名</a> <button type="button" class="btn btn-sm btn-secondary ms-2" data-bs-dismiss="alert">明白了，稍后再去</button>')
+            return redirect(url_for('verify_identity'))
         
         # Security checks
         if item.highest_bidder_id != current_user.id:
@@ -703,6 +763,9 @@ def register_views(app):
     @login_required
     def confirm_payment(item_id):
         item = Item.query.get_or_404(item_id)
+        if not getattr(current_user, 'is_verified', False):
+            flash('您尚未完成实名认证。<a href="' + url_for('verify_identity') + '" class="btn btn-sm btn-primary ms-2">现在去实名</a> <button type="button" class="btn btn-sm btn-secondary ms-2" data-bs-dismiss="alert">明白了，稍后再去</button>')
+            return redirect(url_for('verify_identity'))
         if item.highest_bidder_id != current_user.id:
             return redirect(url_for('index'))
             
@@ -719,6 +782,9 @@ def register_views(app):
     @login_required
     def ship_item(item_id):
         item = Item.query.get_or_404(item_id)
+        if not getattr(current_user, 'is_verified', False):
+            flash('您尚未完成实名认证。<a href="' + url_for('verify_identity') + '" class="btn btn-sm btn-primary ms-2">现在去实名</a> <button type="button" class="btn btn-sm btn-secondary ms-2" data-bs-dismiss="alert">明白了，稍后再去</button>')
+            return redirect(url_for('verify_identity'))
         
         # 验证权限：只有卖家能发货
         if item.seller_id != current_user.id:
@@ -748,6 +814,9 @@ def register_views(app):
     @login_required
     def confirm_receipt(item_id):
         item = Item.query.get_or_404(item_id)
+        if not getattr(current_user, 'is_verified', False):
+            flash('您尚未完成实名认证。<a href="' + url_for('verify_identity') + '" class="btn btn-sm btn-primary ms-2">现在去实名</a> <button type="button" class="btn btn-sm btn-secondary ms-2" data-bs-dismiss="alert">明白了，稍后再去</button>')
+            return redirect(url_for('verify_identity'))
         
         # 验证权限：只有买家能收货
         if item.highest_bidder_id != current_user.id:

@@ -29,6 +29,10 @@ def register_events(socketio):
     def on_bid(data):
         if not current_user.is_authenticated:
             return
+        # 未实名认证限制出价
+        if not getattr(current_user, 'is_verified', False):
+            emit('error', {'msg': '请先完成实名认证后再参与出价'}, room=request.sid)
+            return
             
         item_id = data['item_id']
         # 使用 Decimal 处理金额

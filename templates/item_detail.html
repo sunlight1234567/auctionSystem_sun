@@ -44,11 +44,17 @@
                 <span class="text-muted small ms-2"><i class="bi bi-telephone"></i> {{ item.seller.phone }}</span>
                 {% endif %}
             </a>
-            {% if current_user.is_authenticated and current_user.id != item.seller.id %}
-            <a href="{{ url_for('start_chat', item_id=item.id, other_user_id=item.seller.id) }}" class="btn btn-sm btn-outline-primary ms-3">
-                <i class="bi bi-chat-dots"></i> 联系卖家
-            </a>
-            {% endif %}
+                        {% if current_user.is_authenticated and current_user.id != item.seller.id %}
+                            {% if current_user.role == 'admin' or current_user.is_verified %}
+                                <a href="{{ url_for('start_chat', item_id=item.id, other_user_id=item.seller.id) }}" class="btn btn-sm btn-outline-primary ms-3">
+                                        <i class="bi bi-chat-dots"></i> 联系卖家
+                                </a>
+                            {% else %}
+                                <a href="{{ url_for('verify_identity') }}" class="btn btn-sm btn-warning ms-3">
+                                        <i class="bi bi-shield-exclamation"></i> 您尚未实名认证，去认证
+                                </a>
+                            {% endif %}
+                        {% endif %}
         </div>
         <p>{{ item.description }}</p>
         

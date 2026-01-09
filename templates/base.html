@@ -31,6 +31,13 @@
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('index') }}">首页</a>
                     </li>
+                    {% if current_user.is_authenticated and current_user.role != 'admin' and not current_user.is_verified %}
+                    <li class="nav-item">
+                        <a class="nav-link text-primary fw-semibold" href="{{ url_for('verify_identity') }}">
+                            <i class="bi bi-shield-check"></i> 完成实名认证
+                        </a>
+                    </li>
+                    {% endif %}
                     {% if current_user.is_authenticated and current_user.role == 'seller' %}
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('publish') }}">发布拍品</a>
@@ -99,7 +106,7 @@
         {% if messages %}
             {% for message in messages %}
             <div class="alert alert-info alert-dismissible fade show" role="alert">
-                {{ message }}
+                {{ message|safe }}
                 <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             </div>
             {% endfor %}

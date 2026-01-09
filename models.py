@@ -13,6 +13,11 @@ class User(UserMixin, db.Model):
     phone = db.Column(db.String(20), nullable=True) # 新增：联系电话
     avatar = db.Column(db.String(200), nullable=True) # 新增：用户头像文件名
     banned_until = db.Column(db.DateTime, nullable=True) # 新增：封禁截止时间
+    # 实名认证
+    real_name = db.Column(db.String(80), nullable=True)
+    id_card = db.Column(db.String(20), nullable=True)
+    is_verified = db.Column(db.Boolean, default=False)
+    verified_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.now)
 
 class Item(db.Model):

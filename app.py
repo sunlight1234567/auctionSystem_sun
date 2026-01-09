@@ -25,7 +25,7 @@ def create_app():
     app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max-limit
     
     # --- 数据库配置 (请根据实际情况修改) ---
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:123456@localhost/Auction'
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:12345@localhost/Auction'
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
     db.init_app(app)
@@ -88,6 +88,17 @@ if __name__ == '__main__':
             db.session.execute(text("ALTER TABLE users ADD COLUMN banned_until DATETIME"))
             db.session.commit()
             print(">>> 成功添加 banned_until 字段")
+        except Exception as e:
+            pass
+
+        # 尝试自动迁移添加实名相关字段
+        try:
+            db.session.execute(text("ALTER TABLE users ADD COLUMN real_name VARCHAR(80)"))
+            db.session.execute(text("ALTER TABLE users ADD COLUMN id_card VARCHAR(20)"))
+            db.session.execute(text("ALTER TABLE users ADD COLUMN is_verified BOOLEAN DEFAULT FALSE"))
+            db.session.execute(text("ALTER TABLE users ADD COLUMN verified_at DATETIME"))
+            db.session.commit()
+            print(">>> 成功添加实名相关字段")
         except Exception as e:
             pass
             
