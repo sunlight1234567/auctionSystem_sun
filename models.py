@@ -1,6 +1,6 @@
 from extensions import db
 from flask_login import UserMixin
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 
 class User(UserMixin, db.Model):
@@ -43,9 +43,12 @@ class Item(db.Model):
     order_hash = db.Column(db.String(64), nullable=True) # 订单哈希 (SHA256 hex digest is 64 chars)
     
     # 支付与物流
-    payment_status = db.Column(db.String(20), default='unpaid') # unpaid, paid
+    payment_status = db.Column(db.String(20), default='unpaid') # unpaid, paid, timeout_cancelled
+    paid_at = db.Column(db.DateTime, nullable=True) # 支付时间
     tracking_number = db.Column(db.String(100), nullable=True) # 快递单号
     shipping_status = db.Column(db.String(20), default='unshipped') # unshipped, shipped, received
+    shipped_at = db.Column(db.DateTime, nullable=True) # 发货时间
+    shipping_extended_count = db.Column(db.Integer, default=0) # 延长收货次数
     shipping_name = db.Column(db.String(80), nullable=True)
     shipping_phone = db.Column(db.String(20), nullable=True)
     shipping_address = db.Column(db.String(255), nullable=True)
@@ -55,6 +58,14 @@ class Item(db.Model):
     seller = db.relationship('User', foreign_keys=[seller_id])
     highest_bidder = db.relationship('User', foreign_keys=[highest_bidder_id])
     images = db.relationship('ItemImage', backref='item', lazy=True)
+
+    @property
+    def auto_confirm_deadline(self):
+        if not self.shipped_at:
+            return None
+        # 基础 240 小时 + 每次延长 72 小时
+        hours = 240 + (self.shipping_extended_count * 72)
+        return self.shipped_at + timedelta(hours=hours)
 
 class Bid(db.Model):
     __tablename__ = 'bids'

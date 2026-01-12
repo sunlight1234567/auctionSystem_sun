@@ -68,10 +68,24 @@
                     
                     {% if item.payment_status == 'paid' %}
                         {% if item.shipping_status == 'shipped' %}
-                            <form action="{{ url_for('confirm_receipt', item_id=item.id) }}" method="POST" class="d-inline-block mt-1">
-                                <button type="submit" class="btn btn-sm btn-success" onclick="return confirm('确认已收到货物？')">确认收货</button>
-                            </form>
+                            <div class="d-flex flex-column gap-1 mt-1">
+                                <form action="{{ url_for('confirm_receipt', item_id=item.id) }}" method="POST">
+                                    <button type="submit" class="btn btn-sm btn-success w-100" onclick="return confirm('确认已收到货物？')">确认收货</button>
+                                </form>
+                                {% if item.shipping_extended_count < 2 %}
+                                <form action="{{ url_for('extend_receipt', item_id=item.id) }}" method="POST">
+                                    <button type="submit" class="btn btn-sm btn-info w-100" title="延长收货3天">延长收货 ({{ 2 - item.shipping_extended_count }})</button>
+                                </form>
+                                {% else %}
+                                <button class="btn btn-sm btn-secondary w-100" disabled>延长次数已用完</button>
+                                {% endif %}
+                            </div>
                             <small class="d-block text-muted mt-1">单号: {{ item.tracking_number }}</small>
+                            {% if item.auto_confirm_deadline %}
+                            <small class="d-block text-danger mt-1" title="超时将自动确认收货">
+                                <i class="bi bi-clock-history"></i> 自动确认收货时间: {{ item.auto_confirm_deadline.strftime('%m-%d %H:%M') }}
+                            </small>
+                            {% endif %}
                         {% elif item.shipping_status == 'received' %}
                              <span class="d-block badge bg-success mt-1">已收货</span>
                         {% elif item.shipping_status == 'unshipped' %}

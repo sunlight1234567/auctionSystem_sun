@@ -141,11 +141,37 @@ if __name__ == '__main__':
         except Exception as e:
             pass
 
-        # 尝试自动迁移删除 phone 字段
+        # 尝试自动迁移添加 shipping_extended_count 字段
         try:
-            db.session.execute(text("ALTER TABLE users DROP COLUMN phone"))
+            db.session.execute(text("ALTER TABLE items ADD COLUMN shipping_extended_count INT DEFAULT 0"))
             db.session.commit()
-            app.logger.info("成功删除 phone 字段")
+            app.logger.info("成功添加 shipping_extended_count 字段")
+        except Exception:
+            pass
+            
+        # 尝试自动迁移添加 paid_at 字段
+        try:
+            db.session.execute(text("ALTER TABLE items ADD COLUMN paid_at DATETIME"))
+            db.session.commit()
+            app.logger.info("成功添加 paid_at 字段")
+        except Exception:
+            pass
+
+        # 尝试自动迁移添加 shipped_at 字段
+        try:
+            db.session.execute(text("ALTER TABLE items ADD COLUMN shipped_at DATETIME"))
+            db.session.commit()
+            app.logger.info("成功添加 shipped_at 字段")
+        except Exception:
+            pass
+
+        # 尝试自动迁移添加 banned_until 字段
+        try:
+            db.session.execute(text("ALTER TABLE users ADD COLUMN banned_until DATETIME"))
+            db.session.commit()
+            app.logger.info("成功添加 banned_until 字段")
+        except Exception:
+            pass
         except Exception as e:
             pass
 

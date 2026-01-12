@@ -238,10 +238,10 @@ def register_views(app):
         if not getattr(current_user, 'is_verified', False):
             flash('您尚未完成实名认证。<a href="' + url_for('verify_identity') + '" class="btn btn-sm btn-primary ms-2">现在去实名</a> <button type="button" class="btn btn-sm btn-secondary ms-2" data-bs-dismiss="alert">明白了，稍后再去</button>')
             return redirect(url_for('verify_identity'))
-        # 封禁期间禁止缴纳保证金
+        # 封禁期间禁止发布
         if getattr(current_user, 'banned_until', None) and current_user.banned_until > datetime.now():
-            flash(f'由于未付款记录，您的账户已被封禁至 {current_user.banned_until.strftime("%Y-%m-%d %H:%M")}，暂无法缴纳保证金或参与拍卖。')
-            return redirect(url_for('item_detail', item_id=item_id))
+            flash(f'由于违规记录，您的账户已被封禁至 {current_user.banned_until.strftime("%Y-%m-%d %H:%M")}，暂无法发布。')
+            return redirect(url_for('my_auctions'))
         
         if request.method == 'POST':
             name = request.form.get('name')
@@ -1119,6 +1119,7 @@ def register_views(app):
         if dep and dep.status == 'frozen':
             dep.status = 'applied'
         item.payment_status = 'paid'
+        item.paid_at = datetime.now() # Record payment time
 
         # 记录支付交易（买家）
         db.session.add(WalletTransaction(
@@ -1162,6 +1163,7 @@ def register_views(app):
             
         item.tracking_number = tracking_number
         item.shipping_status = 'shipped'
+        item.shipped_at = datetime.now() # Record shipping time
         db.session.commit()
         
         # 通知买家
@@ -1213,4 +1215,26 @@ def register_views(app):
         send_system_message(item.id, item.seller_id, f"买家已确认收货，订单 {item.order_hash} 完成。资金已转入您的钱包。")
         
         flash('确认收货成功')
+        return redirect(url_for('my_orders'))
+
+    @app.route('/item/<int:item_id>/extend_receipt', methods=['POST'])
+    @login_required
+    def extend_receipt(item_id):
+        item = Item.query.get_or_404(item_id)
+        if item.highest_bidder_id != current_user.id:
+            flash('您无权操作此订单')
+            return redirect(url_for('my_orders'))
+            
+        if item.shipping_status != 'shipped':
+            flash('订单状态不正确')
+            return redirect(url_for('my_orders'))
+            
+        if item.shipping_extended_count >= 2:
+            flash('延长收货次数已用完')
+            return redirect(url_for('my_orders'))
+            
+        item.shipping_extended_count += 1
+        db.session.commit()
+        
+        flash('已延长收货 3 天')
         return redirect(url_for('my_orders'))

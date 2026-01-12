@@ -6,12 +6,117 @@ from extensions import db, socketio
 from models import Item, Bid, Deposit
 from services import send_system_message
 
+def check_unpaid_orders(app, now):
+    """策略1：买家24小时未付款 -> 封禁15天"""
+    timeout_threshold = now - timedelta(hours=24)
+    expired_unpaid = Item.query.filter(
+        Item.status == 'ended',
+        Item.payment_status == 'unpaid',
+        Item.highest_bidder_id.isnot(None),
+        Item.end_time <= timeout_threshold
+    ).all()
+    
+    for item in expired_unpaid:
+        # 避免重复处理：虽然状态还是unpaid，但我们可以检查payment_status是否变为timeout_cancelled
+        # 或者增加一个标志。这里我们将payment_status改为timeout_cancelled
+        item.payment_status = 'timeout_cancelled'
+        buyer = item.highest_bidder
+        if buyer:
+            new_ban_time = now + timedelta(days=15)
+            # 如果已经被封禁且时间更长，则不缩短；否则更新
+            if not buyer.banned_until or buyer.banned_until < new_ban_time:
+                buyer.banned_until = new_ban_time
+                send_system_message(item.id, buyer.id, f'因未在24小时内支付订单 {item.order_hash}，您已被封禁15天。')
+        db.session.commit()
+
+def check_unshipped_orders(app, now):
+    """策略2：卖家72小时未发货 -> 封禁15天"""
+    timeout_threshold = now - timedelta(hours=72)
+    # 必须有支付时间才能判断
+    expired_unshipped = Item.query.filter(
+        Item.payment_status == 'paid',
+        Item.shipping_status == 'unshipped',
+        Item.paid_at <= timeout_threshold
+    ).all()
+
+    for item in expired_unshipped:
+        # 为了避免重复惩罚，我们需要知道是否已经惩罚过。
+        # 简单策略：如果卖家已经被封禁到足以覆盖这次的惩罚，可能就不操作了?
+        # 但我们每一轮都会查出来。
+        # 我们可以再改一个状态，比如 'shipping_status' -> 'timeout_unshipped' 或类似。
+        # 或者我们只处理那些卖家还没有被封禁15天的。
+        # 这里为了稳健，最好给 shipping_status 一个终结状态，或者增加一个 processed 标记。
+        # 让我们把 shipping_status 设为 'unshipped' 保持不变? 不行，会死循环。
+        # 暂时修改 shipping_status 为 'shipped' (系统强制接管?) 还是加个 status?
+        # 为了简单，我们只封禁卖家，但如果不标记 item，下次还会查到。
+        # 我们可以用 banned_until 来判断"是否刚刚处理过"，但这不可靠。
+        # 增加一个 Item 字段 'seller_punished' ? 
+        # 或者，直接将 Item.status 设为 'stopped' 或 'rejected' ? 
+        # 既然是违规，我们把 status 设为 'stopped' (强制下架状态，虽然已经卖了) 
+        # 或者 shipping_status = 'unshipped_timeout' (需要在 models 允许长度)
+        # shipping_status 是 String(20)。 'unshipped_timeout' 是 17 chars. OK.
+        
+        item.shipping_status = 'unshipped_timeout'
+        seller = item.seller
+        if seller:
+             new_ban_time = now + timedelta(days=15)
+             if not seller.banned_until or seller.banned_until < new_ban_time:
+                 seller.banned_until = new_ban_time
+                 send_system_message(item.id, seller.id, f'因买家付款后72小时内未发货 (订单 {item.order_hash})，您已被封禁15天。')
+        db.session.commit()
+
+def check_auto_confirm(app, now):
+    """策略3：发货240 (+N*72) 小时自动收货"""
+    from decimal import Decimal
+    from models import WalletTransaction
+    
+    # 查找所有已发货的订单
+    shipped_items = Item.query.filter(
+        Item.shipping_status == 'shipped',
+        Item.shipped_at.isnot(None)
+    ).all()
+    
+    for item in shipped_items:
+        base_hours = 240
+        extra_hours = item.shipping_extended_count * 72
+        threshold_hours = base_hours + extra_hours
+        
+        elapsed = (now - item.shipped_at).total_seconds() / 3600
+        if elapsed >= threshold_hours:
+            # 执行自动收货逻辑
+            item.shipping_status = 'received'
+            
+            # 卖家入账
+            seller = item.seller
+            sale_total = Decimal(item.current_price)
+            new_balance = (Decimal(seller.wallet_balance) + sale_total)
+            seller.wallet_balance = new_balance
+            
+            db.session.add(WalletTransaction(
+                user_id=seller.id,
+                item_id=item.id,
+                type='payout',
+                direction='credit',
+                amount=sale_total,
+                balance_after=new_balance,
+                description=f'订单自动确认收货入账：{item.name}'
+            ))
+            
+            send_system_message(item.id, seller.id, f'订单 {item.order_hash} 已过自动确认收货期限，资金已入账。')
+            send_system_message(item.id, item.highest_bidder_id, f'订单 {item.order_hash} 已自动确认收货。')
+            db.session.commit()
+
 def check_auctions(app):
     """后台任务：检查拍卖状态"""
     while True:
         try:
             with app.app_context():
                 now = datetime.now()
+                
+                # 执行新的检查策略
+                check_unpaid_orders(app, now)
+                check_unshipped_orders(app, now)
+                check_auto_confirm(app, now)
                 
                 # 1. 检查已到期的 'active' 拍卖 -> 'ended'
                 expired_items = Item.query.filter(Item.status == 'active', Item.end_time <= now).all()

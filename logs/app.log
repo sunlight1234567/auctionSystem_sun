@@ -17,3 +17,6 @@ WHERE users.username = %(username_1)s
 2026-01-12 09:47:43,773 INFO [app] 成功添加 email 字段
 2026-01-12 09:51:50,977 INFO [app] 成功删除 phone 字段
 2026-01-12 10:08:17,014 INFO [app] 成功添加 category 字段
+2026-01-12 11:05:49,717 INFO [app] 成功添加 shipping_extended_count 字段
+2026-01-12 11:05:49,744 INFO [app] 成功添加 paid_at 字段
+2026-01-12 11:05:49,790 INFO [app] 成功添加 shipped_at 字段
