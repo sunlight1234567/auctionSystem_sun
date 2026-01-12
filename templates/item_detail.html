@@ -30,9 +30,22 @@
         {% endif %}
     </div>
     <div class="col-md-6">
-        <h2 id="item-name">{{ item.name }}</h2>
+        <div class="d-flex justify-content-between align-items-start">
+            <h2 id="item-name">{{ item.name }}</h2>
+            {% if current_user.is_authenticated %}
+            <form action="{{ url_for('toggle_favorite', item_id=item.id) }}" method="POST">
+                <button type="submit" class="btn btn-outline-danger btn-sm" title="{{ '取消收藏' if is_favorited else '加入收藏' }}">
+                    {% if is_favorited %}
+                    <i class="bi bi-heart-fill"></i> 已收藏
+                    {% else %}
+                    <i class="bi bi-heart"></i> 收藏
+                    {% endif %}
+                </button>
+            </form>
+            {% endif %}
+        </div>
         {% if item.category %}
-        <span class="badge bg-info text-dark mb-2">{{ item.category }}</span>
+        <span class="badge bg-info text-dark mb-2">{{ item.category }}</span> 
         {% endif %}
         <div class="d-flex align-items-center mb-3">
             <span class="text-muted me-2">卖家:</span>

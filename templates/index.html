@@ -26,7 +26,7 @@
             <div class="input-group">
                 <input type="search" class="form-control" name="q" placeholder="搜索商品名称或卖家..." aria-label="Search" value="{{ search_query }}">
                 
-                <select class="form-select" name="category" style="max-width: 200px; background-color: #f8f9fa;">
+                <select class="form-select" name="category" style="max-width: 200px; background-color: #f8f9fa;" onchange="this.form.submit()">
                     <option value="">全部分类</option>
                     {% for c in categories %}
                     <option value="{{ c }}" {% if c == current_category %}selected{% endif %}>{{ c }}</option>

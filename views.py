@@ -426,7 +426,39 @@ def register_views(app):
                     is_banned = True
             except Exception:
                 is_banned = False
-        return render_template('item_detail.html', item=item, deposit_amount=deposit_amount, has_deposit=has_deposit, is_banned=is_banned)
+        
+        is_favorited = False
+        if current_user.is_authenticated:
+            from models import Favorite
+            is_favorited = Favorite.query.filter_by(user_id=current_user.id, item_id=item.id).first() is not None
+
+        return render_template('item_detail.html', item=item, deposit_amount=deposit_amount, has_deposit=has_deposit, is_banned=is_banned, is_favorited=is_favorited)
+
+    @app.route('/item/<int:item_id>/favorite', methods=['POST'])
+    @login_required
+    def toggle_favorite(item_id):
+        from models import Favorite
+        fav = Favorite.query.filter_by(user_id=current_user.id, item_id=item_id).first()
+        if fav:
+            db.session.delete(fav)
+            db.session.commit()
+            flash('已取消收藏')
+        else:
+            new_fav = Favorite(user_id=current_user.id, item_id=item_id)
+            db.session.add(new_fav)
+            db.session.commit()
+            flash('已添加到收藏')
+        return redirect(url_for('item_detail', item_id=item_id))
+
+    @app.route('/my_favorites')
+    @login_required
+    def my_favorites():
+        from models import Favorite
+        # Join to get items
+        favorites = Favorite.query.filter_by(user_id=current_user.id).order_by(Favorite.created_at.desc()).all()
+        # Extract items
+        items = [f.item for f in favorites]
+        return render_template('my_favorites.html', items=items)
 
     @app.route('/item/<int:item_id>/deposit', methods=['GET', 'POST'])
     @login_required

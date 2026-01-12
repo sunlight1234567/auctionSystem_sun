@@ -153,3 +153,13 @@ class WalletTransaction(db.Model):
 
     user = db.relationship('User')
     item = db.relationship('Item')
+
+class Favorite(db.Model):
+    __tablename__ = 'favorites'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    item_id = db.Column(db.Integer, db.ForeignKey('items.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.now)
+
+    user = db.relationship('User', backref=db.backref('favorites', lazy='dynamic'))
+    item = db.relationship('Item', backref=db.backref('favorited_by', lazy='dynamic'))

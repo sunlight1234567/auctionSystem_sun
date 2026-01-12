@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block title %}我的收藏{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3><i class="bi bi-heart-fill text-danger"></i> 我的收藏</h3>
+        <a href="{{ url_for('index') }}" class="btn btn-outline-primary">去逛逛</a>
+    </div>
+
+    {% if items %}
+    <div class="row">
+        {% for item in items %}
+        <div class="col-md-3 mb-4">
+            <div class="card h-100 shadow-sm">
+                <a href="{{ url_for('item_detail', item_id=item.id) }}" class="text-decoration-none text-dark">
+                    {% if item.images and item.images|length > 0 %}
+                    <img src="{{ url_for('static', filename=item.images[0].image_url) }}" class="card-img-top" alt="{{ item.name }}" style="height: 180px; object-fit: cover;">
+                    {% else %}
+                    <div class="bg-secondary text-white d-flex align-items-center justify-content-center" style="height: 180px;">
+                        暂无图片
+                    </div>
+                    {% endif %}
+                    <div class="card-body">
+                        <h5 class="card-title text-truncate">{{ item.name }}</h5>
+                        <p class="card-text mb-1">
+                            {% if item.status == 'active' %}
+                            <span class="badge bg-danger">正在拍卖</span>
+                            <strong class="text-danger ms-1">¥{{ item.current_price }}</strong>
+                            {% elif item.status == 'upcoming' %}
+                            <span class="badge bg-info text-dark">即将开始</span>
+                            <span class="ms-1">¥{{ item.start_price }} 起</span>
+                            {% elif item.status == 'ended' %}
+                            <span class="badge bg-secondary">已结束</span>
+                            <span class="text-muted ms-1">¥{{ item.current_price }}</span>
+                            {% else %}
+                            <span class="badge bg-secondary">{{ item.status }}</span>
+                            {% endif %}
+                        </p>
+                        {% if item.category %}
+                        <span class="badge bg-light text-dark border">{{ item.category }}</span>
+                        {% endif %}
+                    </div>
+                </a>
+                <div class="card-footer bg-white border-top-0">
+                    <form action="{{ url_for('toggle_favorite', item_id=item.id) }}" method="POST" class="d-grid">
+                        <button type="submit" class="btn btn-sm btn-outline-danger">取消收藏</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-center py-5">
+        <div class="mb-3">
+            <i class="bi bi-heart text-muted" style="font-size: 4rem;"></i>
+        </div>
+        <p class="text-muted">您还没有收藏任何商品</p>
+        <a href="{{ url_for('index') }}" class="btn btn-primary mt-2">浏览商品</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
